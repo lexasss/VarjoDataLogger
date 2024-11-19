@@ -14,7 +14,7 @@
   </ItemGroup>
 	
   <ItemGroup>
-    <Libraries Include="libs/*.*" />
+    <Libraries Include="../libs/*.*" />
   </ItemGroup>
 	
   <Target Name="CopyLibraries" AfterTargets="AfterBuild">
