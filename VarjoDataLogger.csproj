@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="com.tarekfadel.open_folder_library" Version="1.0.1" />
+    <PackageReference Include="Win32Methods" Version="1.5.0" />
+  </ItemGroup>
+	
+  <ItemGroup>
+    <Libraries Include="libs/*.*" />
+  </ItemGroup>
+	
+  <Target Name="CopyLibraries" AfterTargets="AfterBuild">
+    <Copy SourceFiles="@(Libraries)" DestinationFolder="$(OutDir)" />
+  </Target>
+
+</Project>
