@@ -31,7 +31,10 @@ class App
         var ht = new HandTracker();
         var gt = new GazeTracker();
 
-        nc.Message += (s, e) => { Console.WriteLine(e); };
+        int i = 0;
+        string netMessage = "";
+
+        nc.Message += (s, e) => netMessage = e;
 
         ht.Data += (s, e) =>
         {
@@ -50,8 +53,13 @@ class App
         {
             lock (_handLocation)
             {
-                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch, _handLocation.X, _handLocation.Y, _handLocation.Z);
-                Console.WriteLine($"{e.Timestamp}\tGaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}     Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}     Hand: {_handLocation.X,-6:F1} {_handLocation.Y,-6:F1} {_handLocation.Z,-6:F1}");
+                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch, _handLocation.X, _handLocation.Y, _handLocation.Z, netMessage);
+                netMessage = "";
+
+                if ((i++ % 30) == 0)
+                {
+                    Console.WriteLine($"{e.Timestamp}\tGaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}     Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}     Hand: {_handLocation.X,-6:F1} {_handLocation.Y,-6:F1} {_handLocation.Z,-6:F1}");
+                }
             }
         };
 
