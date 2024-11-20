@@ -15,7 +15,17 @@ class App
         Thread.CurrentThread.CurrentCulture = culture;
         Thread.CurrentThread.CurrentUICulture = culture;
 
-        var options = Options.Parse(args);
+        Settings settings;
+
+        try
+        {
+            settings = Settings.Instance;
+        }
+        catch (Exception ex_)
+        {
+            Console.WriteLine(ex_);
+            return;
+        }
 
         var nc = new NetClient();
         var ht = new HandTracker();
@@ -47,7 +57,7 @@ class App
 
         Console.WriteLine();
 
-        var connectionTask = nc.Connect(options.IP);
+        var connectionTask = nc.Connect(settings.IP);
         connectionTask.Wait();
 
         Exception? ex = connectionTask.Result;

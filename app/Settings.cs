@@ -1,22 +1,33 @@
-﻿using System.ComponentModel;
+﻿using CommandLine;
 
 namespace VarjoDataLogger;
 
-class Settings : INotifyPropertyChanged
+public class Settings
 {
-    public static Settings Instance => _instance ??= new();
+    public static Settings Instance => _instance ??= Create();
 
-    public string LogFolder
+    [Option("ip", Required = false, HelpText = "IP address of the PC running N-Back task application. Default is '127.0.0.1'")]
+    public string IP { get; set; } = "127.0.0.1";
+
+    [Option('l', "log", Required = false, HelpText = "Log file folder, must be without spaces. Default is 'MyDocuments'")]
+    public string LogFolder { get; set; }
+
+    /// <summary>
+    /// The constructor must not be used: Use <see cref="Instance"/>
+    /// </summary>
+    public Settings()
     {
-        get => _logFolder;
-        set
+        /*
+        var settings = Properties.Settings.Default;
+
+        _logFolder = settings.LogFolder;
+        */
+
+        if (string.IsNullOrEmpty(LogFolder))
         {
-            _logFolder = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LogFolder)));
+            LogFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         }
     }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public void Save()
     {
@@ -33,26 +44,17 @@ class Settings : INotifyPropertyChanged
 
     static Settings? _instance = null;
 
-    string _logFolder = "";
-
-#pragma warning disable CS8618
-    private Settings()
+    private static Settings Create()
     {
-        Load();
+        var args = Environment.GetCommandLineArgs()[1..];
+        var settings = Parser.Default.ParseArguments<Settings>(args);
 
-        if (string.IsNullOrEmpty(_logFolder))
-        {
-            _logFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        }
-    }
-#pragma warning restore CS8618
+        bool missesRequired = false;
+        settings.WithNotParsed(errors => missesRequired = errors.Any(error => error is MissingRequiredOptionError));
 
-    private void Load()
-    {
-        /*
-        var settings = Properties.Settings.Default;
+        if (missesRequired)
+            throw new Exception("Missing required options");
 
-        _logFolder = settings.LogFolder;
-        */
+        return settings.Value ?? new Settings();
     }
 }
