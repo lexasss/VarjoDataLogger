@@ -6,9 +6,12 @@ public class HandTracker : IDisposable
 {
     public event EventHandler<Vector>? Data;
 
-    public bool IsReady => _lm?.IsConnected ?? false;
+    public bool IsReady => _lm != null;
 
-    public double MaxDistance { get; set; } = 50;
+    /// <summary>
+    /// Maximum distance for the hand to be tracked, in cm
+    /// </summary>
+    public double MaxDistance { get; set; } = 80;
 
     public HandTracker()
     {
@@ -26,8 +29,8 @@ public class HandTracker : IDisposable
             // Ask for frames even in the background - this is important!
             _lm.SetPolicy(LeapMotion.PolicyFlag.POLICY_BACKGROUND_FRAMES);
             _lm.SetPolicy(LeapMotion.PolicyFlag.POLICY_ALLOW_PAUSE_RESUME);
+            _lm.SetPolicy(LeapMotion.PolicyFlag.POLICY_OPTIMIZE_HMD);
 
-            _lm.ClearPolicy(LeapMotion.PolicyFlag.POLICY_OPTIMIZE_HMD); // NOT head mounted
             _lm.ClearPolicy(LeapMotion.PolicyFlag.POLICY_IMAGES);       // NO images, please
 
             // Subscribe to connected/not messages
@@ -86,9 +89,9 @@ public class HandTracker : IDisposable
 
         if (e.frame.Hands.Count > 0)
         {
-            var x = e.frame.Hands[0].PalmPosition.x;
-            var y = e.frame.Hands[0].PalmPosition.y;
-            var z = e.frame.Hands[0].PalmPosition.z;
+            var x = e.frame.Hands[0].PalmPosition.x / 10;
+            var y = e.frame.Hands[0].PalmPosition.y / 10;
+            var z = e.frame.Hands[0].PalmPosition.z / 10;
 
             if (Math.Sqrt(x * x + y * y + z * z) < MaxDistance)
             {

@@ -15,28 +15,54 @@ class App
         Thread.CurrentThread.CurrentCulture = culture;
         Thread.CurrentThread.CurrentUICulture = culture;
 
+        var options = Options.Parse(args);
+
+        var nc = new NetClient();
         var ht = new HandTracker();
+        var gt = new GazeTracker();
+
+        nc.Message += (s, e) => { Console.WriteLine(e); };
+
         ht.Data += (s, e) =>
         {
+            double x = e.X, y = e.Y, z = e.Z;
+            gt.ConvertLeapMotionCoordsToVarjoCoords(ref x, ref y, ref z);
+
             lock (_handLocation)
             {
-                _handLocation.X = e.X;
-                _handLocation.Y = e.Y;
-                _handLocation.Z = e.Z;
+                _handLocation.X = x;
+                _handLocation.Y = y;
+                _handLocation.Z = z;
             }
         };
 
-        var gt = new GazeTracker();
         gt.Data += (s, e) =>
         {
             lock (_handLocation)
             {
-                _logger.Add(e.Timestamp / 1000_000, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch, _handLocation.X, _handLocation.Y, _handLocation.Z);
-                Console.WriteLine($"{e.Timestamp / 1000_000}\tGaze: H={e.Eye.Yaw,-8:F2} V={e.Eye.Pitch,-8:F2}\tHead: H={e.Head.Yaw,-8:F2} V={e.Head.Pitch,-8:F2}\tHand: X={_handLocation.X,-8:F1}, Y={_handLocation.Y,-8:F1}, Z={_handLocation.Z,-8:F1}");
+                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch, _handLocation.X, _handLocation.Y, _handLocation.Z);
+                Console.WriteLine($"{e.Timestamp}\tGaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}     Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}     Hand: {_handLocation.X,-6:F1} {_handLocation.Y,-6:F1} {_handLocation.Z,-6:F1}");
             }
         };
 
         Console.WriteLine();
+
+        var connectionTask = nc.Connect(options.IP);
+        connectionTask.Wait();
+
+        Exception? ex = connectionTask.Result;
+        if (ex != null)
+        {
+            Console.WriteLine($"Cannot connect to the N-Back task application {ex.Message}.\nIs N-Back task application running?");
+        }
+        else if (!nc.IsConnected)
+        {
+            Console.WriteLine("Cannot connect to the N-Back task application. Is it running?");
+        }
+        else
+        {
+            Console.WriteLine("Connect to the N-Back task application.");
+        }
 
         if (ht.IsReady && gt.IsReady)
         {
@@ -57,6 +83,8 @@ class App
         {
             Console.WriteLine("Not all devices are ready. Exiting...");
         }
+
+        nc.Dispose();
     }
 
     readonly static Vector _handLocation = new(0, 0, 0);

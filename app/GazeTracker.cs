@@ -39,6 +39,8 @@ public partial class GazeTracker : IDisposable
         _thread.Start();
     }
 
+    public void ConvertLeapMotionCoordsToVarjoCoords(ref double x, ref double y, ref double z) => Interop.ConvertLeapMotionCoordsToVarjoCoords(ref x, ref y, ref z);
+
     public void Dispose()
     {
         _thread?.Interrupt();
@@ -76,5 +78,9 @@ public partial class GazeTracker : IDisposable
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Run(IntPtr cb);
+
+        [LibraryImport(_dllImportPath)]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void ConvertLeapMotionCoordsToVarjoCoords(ref double x, ref double y, ref double z);
     }
 }
