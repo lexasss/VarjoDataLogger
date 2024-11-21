@@ -15,11 +15,15 @@
   </ItemGroup>
 	
   <ItemGroup>
-    <Libraries Include="../libs/*.*" />
+    <Libraries Include="$(SolutionDir)/libs/*.*" />
   </ItemGroup>
 	
   <Target Name="CopyLibraries" AfterTargets="AfterBuild">
     <Copy SourceFiles="@(Libraries)" DestinationFolder="$(OutDir)" />
+  </Target>
+
+  <Target Name="PrepublishScript" BeforeTargets="PrepareForPublish">
+    <Copy SourceFiles="@(Libraries)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" />
   </Target>
 
 </Project>

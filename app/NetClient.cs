@@ -4,6 +4,8 @@ namespace VarjoDataLogger;
 
 public class NetClient : IDisposable
 {
+    public string IP { get; private set; } = "127.0.0.1";
+    public int Port { get; private set; } = 8963;
     public bool IsConnected { get; private set; } = false;
 
     public event EventHandler<string>? Message;
@@ -16,17 +18,20 @@ public class NetClient : IDisposable
         _client = new TcpClient();
     }
 
-    public async Task<Exception?> Connect(string ip, int port = 8963, int timeout = 3000)
+    public async Task<Exception?> Connect(string? ip = null, int? port = null, int timeout = 3000)
     {
         if (_readingThread is not null)
             return new Exception($"The client is connected already");
+
+        IP = ip ?? IP;
+        Port = port ?? Port;
 
         try
         {
             var cts = new CancellationTokenSource();
             cts.CancelAfter(timeout);
 
-            await _client.ConnectAsync(ip, port, cts.Token);
+            await _client.ConnectAsync(IP, Port, cts.Token);
             IsConnected = true;
 
             _readingThread = new Thread(ReadInLoop);
