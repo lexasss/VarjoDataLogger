@@ -12,8 +12,11 @@ public class Settings
     [Option('l', "log", Required = false, HelpText = "Log file folder, must be without spaces. Default is 'MyDocuments'")]
     public string LogFolder { get; set; }
 
+    [Option('f', "finger", Required = false, HelpText = "If set, then the hand tracking site is an index finger instead of palm. Default is 'false'")]
+    public bool UseFinger { get; set; } = false;
+
     /// <summary>
-    /// The constructor must not be used: Use <see cref="Instance"/>
+    /// IMPORTANT! The constructor must not be used explicitely, rather use <see cref="Instance"/>
     /// </summary>
     public Settings()
     {

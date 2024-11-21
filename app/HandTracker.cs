@@ -13,6 +13,8 @@ public class HandTracker : IDisposable
     /// </summary>
     public double MaxDistance { get; set; } = 80;
 
+    public bool UseFinger { get; set; } = false;
+
     public HandTracker()
     {
         try
@@ -53,6 +55,8 @@ public class HandTracker : IDisposable
         {
             _lm.StartConnection();
         }
+
+        _isRunning = true;
     }
 
     public void Dispose()
@@ -63,10 +67,53 @@ public class HandTracker : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    public static Vector ConvertLeapMotionCoordsToVarjoCoords(Rotation headAngles, Vector location)
+    {
+        var x = location.Z + OFFSET_Z;
+        var y = location.X + OFFSET_X;
+        var z = location.Y + OFFSET_Y;
+
+        var a = -headAngles.Yaw.ToRad();
+        var b = -headAngles.Pitch.ToRad();
+        var c = -headAngles.Roll.ToRad();
+
+        var sinA = Math.Sin(a);
+        var sinB = Math.Sin(b);
+        var sinC = Math.Sin(c);
+        var cosA = Math.Cos(a);
+        var cosB = Math.Cos(b);
+        var cosC = Math.Cos(c);
+
+        var m11 = cosB * cosC;
+        var m21 = cosB * sinC;
+        var m31 = -sinB;
+
+        var m12 = sinA * sinB * cosC - cosA * sinC;
+        var m22 = sinA * sinB * sinC + cosA * cosC;
+        var m32 = sinA * cosB;
+
+        var m13 = cosA * sinB * cosC + sinA * sinC;
+        var m23 = cosA * sinB * sinC - sinA * cosC;
+        var m33 = cosA * cosB;
+
+        var z_ = m11 * x + m12 * y + m13 * z - OFFSET_Z;
+        var x_ = m21 * x + m22 * y + m23 * z - OFFSET_X;
+        var y_ = m31 * x + m32 * y + m33 * z - OFFSET_Y;
+
+        //Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {location.X,-8:F2} {location.Y,-8:F2} {location.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
+
+        return new Vector(x_, y_, z_);
+    }
+
     // Internal
+
+    const double OFFSET_X = 0;
+    const double OFFSET_Y = 15.99;
+    const double OFFSET_Z = -1.12;
 
     LeapMotion? _lm = null;
     bool _isConnected = false;
+    bool _isRunning = false;
 
     private void Lmc_Disconnect(object? sender, ConnectionLostEventArgs e)
     {
@@ -80,18 +127,23 @@ public class HandTracker : IDisposable
 
     private void Lmc_FrameReady(object? sender, FrameEventArgs e)
     {
+        if (!_isRunning)
+            return;
+
         if (!_isConnected)
-        {
             _isConnected = true;
-        }
 
         bool handDetected = false;
 
         if (e.frame.Hands.Count > 0)
         {
-            var x = e.frame.Hands[0].PalmPosition.x / 10;
-            var y = e.frame.Hands[0].PalmPosition.y / 10;
-            var z = e.frame.Hands[0].PalmPosition.z / 10;
+            var vector = UseFinger
+                ? e.frame.Hands[0].Fingers[1].TipPosition
+                : e.frame.Hands[0].PalmPosition;
+
+            var x = vector.x / 10;
+            var y = vector.y / 10;
+            var z = vector.z / 10;
 
             if (Math.Sqrt(x * x + y * y + z * z) < MaxDistance)
             {
@@ -102,7 +154,7 @@ public class HandTracker : IDisposable
 
         if (!handDetected)
         {
-            Data?.Invoke(this, new Vector());
+            Data?.Invoke(this, Vector.Zero);
         }
 
         // e.frame.Hands[0].Fingers[0..4].TipPosition.x;

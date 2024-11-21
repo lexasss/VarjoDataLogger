@@ -28,7 +28,7 @@ class App
         }
 
         var nc = new NetClient();
-        var ht = new HandTracker();
+        var ht = new HandTracker() { UseFinger = settings.UseFinger };
         var gt = new GazeTracker();
 
         int i = 0;
@@ -38,14 +38,13 @@ class App
 
         ht.Data += (s, e) =>
         {
-            double x = e.X, y = e.Y, z = e.Z;
-            gt.ConvertLeapMotionCoordsToVarjoCoords(ref x, ref y, ref z);
+            var location = HandTracker.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e);
 
             lock (_handLocation)
             {
-                _handLocation.X = x;
-                _handLocation.Y = y;
-                _handLocation.Z = z;
+                _handLocation.X = location.X;
+                _handLocation.Y = location.Y;
+                _handLocation.Z = location.Z;
             }
         };
 

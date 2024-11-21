@@ -8,6 +8,9 @@ public partial class GazeTracker : IDisposable
 
     public bool IsReady => _isInitilized;
 
+    public Rotation HeadRotation { get; private set; } = new(0, 0, 0);
+
+
     public GazeTracker()
     {
         _isInitilized = Interop.Init();
@@ -24,6 +27,8 @@ public partial class GazeTracker : IDisposable
             var yaw = RadiansToDegrees * Math.Atan(eyeRotX * oneOverZ);
             var pitch = RadiansToDegrees * Math.Atan(eyeRotY * oneOverZ);
 
+            HeadRotation = new(headPitch, headYaw, headRoll);
+
             Data?.Invoke(this, new EyeHead(timestamp, new Rotation(pitch, yaw, 0), new Rotation(headPitch, headYaw, headRoll)));
         }
 
@@ -38,8 +43,6 @@ public partial class GazeTracker : IDisposable
         });
         _thread.Start();
     }
-
-    public void ConvertLeapMotionCoordsToVarjoCoords(ref double x, ref double y, ref double z) => Interop.ConvertLeapMotionCoordsToVarjoCoords(ref x, ref y, ref z);
 
     public void Dispose()
     {
@@ -78,9 +81,5 @@ public partial class GazeTracker : IDisposable
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Run(IntPtr cb);
-
-        [LibraryImport(_dllImportPath)]
-        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
-        public static partial void ConvertLeapMotionCoordsToVarjoCoords(ref double x, ref double y, ref double z);
     }
 }
