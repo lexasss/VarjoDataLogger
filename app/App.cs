@@ -11,19 +11,11 @@ class App
         // Set the US-culture across the application to avoid decimal point parsing/logging issues
         var culture = CultureInfo.GetCultureInfo("en-US");
         CultureInfo.DefaultThreadCurrentCulture = culture;
-        CultureInfo.DefaultThreadCurrentUICulture = culture;
         Thread.CurrentThread.CurrentCulture = culture;
-        Thread.CurrentThread.CurrentUICulture = culture;
 
-        Settings settings;
-
-        try
+        if (!Settings.TryGetInstance(out Settings settings, out string? error))
         {
-            settings = Settings.Instance;
-        }
-        catch (Exception ex_)
-        {
-            Console.WriteLine(ex_);
+            Console.WriteLine(error);
             return;
         }
 
@@ -32,9 +24,9 @@ class App
         var gt = new GazeTracker();
 
         int i = 0;
-        string netMessage = "";
+        string nbackTaskMessage = "";
 
-        nc.Message += (s, e) => netMessage = e;
+        nc.Message += (s, e) => nbackTaskMessage = e;
 
         ht.Data += (s, e) =>
         {
@@ -52,8 +44,8 @@ class App
         {
             lock (_handLocation)
             {
-                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch, _handLocation.X, _handLocation.Y, _handLocation.Z, netMessage);
-                netMessage = "";
+                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch, _handLocation.X, _handLocation.Y, _handLocation.Z, nbackTaskMessage);
+                nbackTaskMessage = "";
 
                 if ((i++ % 30) == 0)
                 {

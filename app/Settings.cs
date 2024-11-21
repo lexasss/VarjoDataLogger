@@ -4,8 +4,6 @@ namespace VarjoDataLogger;
 
 public class Settings
 {
-    public static Settings Instance => _instance ??= Create();
-
     [Option("ip", Required = false, HelpText = "IP address of the PC running N-Back task application. Default is '127.0.0.1'")]
     public string IP { get; set; } = "127.0.0.1";
 
@@ -15,8 +13,25 @@ public class Settings
     [Option('f', "finger", Required = false, HelpText = "If set, then the hand tracking site is an index finger instead of palm. Default is 'false'")]
     public bool UseFinger { get; set; } = false;
 
+    public static bool TryGetInstance(out Settings settings, out string? error)
+    {
+        error = null;
+
+        try
+        {
+            _instance ??= Create();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+
+        settings = _instance ?? new Settings();
+        return _instance != null;
+    }
+
     /// <summary>
-    /// IMPORTANT! The constructor must not be used explicitely, rather use <see cref="Instance"/>
+    /// IMPORTANT! The constructor must not be used explicitely, rather use <see cref="TryGetInstance"/>
     /// </summary>
     public Settings()
     {
