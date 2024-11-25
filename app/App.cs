@@ -30,7 +30,7 @@ class App
 
         ht.Data += (s, e) =>
         {
-            var location = HandTracker.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e);
+            var location = ht.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e);
 
             lock (_handLocation)
             {

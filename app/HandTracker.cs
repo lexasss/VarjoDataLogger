@@ -17,6 +17,12 @@ public class HandTracker : IDisposable
 
     public HandTracker()
     {
+        if (Settings.TryGetInstance(out Settings settings, out string? error))
+        {
+            _offsetY = settings.LeapMotionOffset.y;
+            _offsetZ = settings.LeapMotionOffset.z;
+        }
+
         try
         {
             _lm = new LeapMotion();
@@ -67,11 +73,11 @@ public class HandTracker : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public static Vector ConvertLeapMotionCoordsToVarjoCoords(Rotation headAngles, Vector location)
+    public Vector ConvertLeapMotionCoordsToVarjoCoords(Rotation headAngles, Vector location)
     {
-        var x = location.Z + OFFSET_Z;
-        var y = location.X + OFFSET_X;
-        var z = location.Y + OFFSET_Y;
+        var x = location.Z + _offsetZ;
+        var y = location.X + _offsetX;
+        var z = location.Y + _offsetY;
 
         var a = -headAngles.Yaw.ToRad();
         var b = -headAngles.Pitch.ToRad();
@@ -96,9 +102,9 @@ public class HandTracker : IDisposable
         var m23 = cosA * sinB * sinC - sinA * cosC;
         var m33 = cosA * cosB;
 
-        var z_ = m11 * x + m12 * y + m13 * z - OFFSET_Z;
-        var x_ = m21 * x + m22 * y + m23 * z - OFFSET_X;
-        var y_ = m31 * x + m32 * y + m33 * z - OFFSET_Y;
+        var z_ = m11 * x + m12 * y + m13 * z - _offsetZ;
+        var x_ = m21 * x + m22 * y + m23 * z - _offsetX;
+        var y_ = m31 * x + m32 * y + m33 * z - _offsetY;
 
         //Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {location.X,-8:F2} {location.Y,-8:F2} {location.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
 
@@ -107,9 +113,9 @@ public class HandTracker : IDisposable
 
     // Internal
 
-    const double OFFSET_X = 0;
-    const double OFFSET_Y = 15.99;
-    const double OFFSET_Z = -1.12;
+    double _offsetX = 0;
+    double _offsetY = 15.99;
+    double _offsetZ = -1.12;
 
     LeapMotion? _lm = null;
     bool _isConnected = false;

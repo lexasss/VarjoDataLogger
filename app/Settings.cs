@@ -13,6 +13,21 @@ public class Settings
     [Option('f', "finger", Required = false, HelpText = "If set, then the hand tracking site is an index finger instead of palm. Default is 'false'")]
     public bool UseFinger { get; set; } = false;
 
+    [Option('o', "offset", Required = false, HelpText = "Leap Motion ZY[X] offsets (comma-separated, no spaces). Default is '0,0,0'")]
+    public string LeapMotionOffsetStr { get; set; } = "0,0,0";
+
+    public Leap.Vector LeapMotionOffset
+    {
+        get
+        {
+            var p = LeapMotionOffsetStr.Split(",");
+            float.TryParse(p.Length > 2 ? p[2] : "0", out float x);
+            float.TryParse(p.Length > 2 ? p[1] : "0", out float y);
+            float.TryParse(p[0], out float z);
+            return new Leap.Vector(x, y, z);
+        }
+    }
+
     public static bool TryGetInstance(out Settings settings, out string? error)
     {
         error = null;

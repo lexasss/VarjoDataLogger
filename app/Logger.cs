@@ -1,4 +1,5 @@
-﻿using System.Windows.Forms;
+﻿using System.Runtime;
+using System.Windows.Forms;
 
 namespace VarjoDataLogger;
 
@@ -29,16 +30,22 @@ internal class Logger
         if (_records.Count == 0)
             return null;
 
-        if (string.IsNullOrEmpty(_settings.LogFolder))
+        var folderName = "";
+        if (Settings.TryGetInstance(out Settings settings, out string? error))
         {
-            var folderName = SelectLogFolder(_settings.LogFolder);
+            folderName = settings.LogFolder;
+        }
+
+        if (string.IsNullOrEmpty(folderName))
+        {
+            folderName = SelectLogFolder();
             if (folderName != null)
-                _settings.LogFolder = folderName;
+                settings.LogFolder = folderName;
             else
                 return null;
         }
 
-        var filename = Path.Join(_settings.LogFolder, $"vdl-{DateTime.Now:u}.txt".ToPath());
+        var filename = Path.Join(folderName, $"vdl-{DateTime.Now:u}.txt".ToPath());
 
         try
         {
@@ -90,5 +97,4 @@ internal class Logger
     static Logger? _instance = null;
 
     readonly List<string> _records = [];
-    readonly Settings _settings = Settings.Instance;
 }
