@@ -1,8 +1,7 @@
 {
   "profiles": {
     "VarjoDataLogger": {
-      "commandName": "Project",
-      "commandLineArgs": "--ip 127.0.0.1 -o -3.5,15"
+      "commandName": "Project"
     }
   }
 }

@@ -13,11 +13,14 @@ public class Settings
     [Option('f', "finger", Required = false, HelpText = "If set, then the hand tracking site is an index finger instead of palm. Default is 'false'")]
     public bool UseFinger { get; set; } = false;
 
-    [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '0,0,0'")]
-    public string LmOffsetStr { get; set; } = "0,0,0";
+    [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '0,15,-6'")]
+    public string LmOffsetStr { get; set; } = "0,15,-6";
 
     [Option('c', "coords", Required = false, HelpText = "Leap Motion coordinates. Default is 'XYZ' meaning left, forward, down. Use lowercase to inverse an axis the direction")]
     public string LmCoords { get; set; } = "XYZ";
+
+    [Option('v', "verbose", Required = false, HelpText = "Debug info is printed in the verbose mode. Default is 'false'")]
+    public bool IsVerbose { get; set; } = false;
 
     public Leap.Vector LmOffset
     {

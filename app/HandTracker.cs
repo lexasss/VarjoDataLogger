@@ -30,14 +30,14 @@ public class HandTracker : IDisposable
 
     public HandTracker()
     {
-        if (Settings.TryGetInstance(out Settings settings, out string? error))
+        if (Settings.TryGetInstance(out _settings, out string? error))
         {
-            _offsetY = settings.LmOffset.y;
-            _offsetZ = settings.LmOffset.z;
+            _offsetY = _settings.LmOffset.y;
+            _offsetZ = _settings.LmOffset.z;
 
             Console.WriteLine($"[LM] offsets: {_offsetX},{_offsetY},{_offsetZ}");
 
-            CoordSystem = settings.LmCoords;
+            CoordSystem = _settings.LmCoords;
         }
 
         try
@@ -98,12 +98,20 @@ public class HandTracker : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Applies translation and ZYX-rotation of hand location to compensate for the head rotations
+    /// </summary>
+    /// <param name="headAngles">Head Euler angles</param>
+    /// <param name="location">Hand location</param>
+    /// <returns></returns>
     public Vector ConvertLeapMotionCoordsToVarjoCoords(Rotation headAngles, Vector location)
     {
+        // translation
         var x = location.Z + _offsetZ;
         var y = location.X + _offsetX;
         var z = location.Y + _offsetY;
 
+        // preparing rotation
         var a = -headAngles.Yaw.ToRad();
         var b = -headAngles.Pitch.ToRad();
         var c = -headAngles.Roll.ToRad();
@@ -127,20 +135,26 @@ public class HandTracker : IDisposable
         var m23 = cosA * sinB * sinC - sinA * cosC;
         var m33 = cosA * cosB;
 
-        var z_ = m11 * x + m12 * y + m13 * z - _offsetZ;
-        var x_ = m21 * x + m22 * y + m23 * z - _offsetX;
-        var y_ = m31 * x + m32 * y + m33 * z - _offsetY;
+        // rotation
+        var z_ = m11 * x + m12 * y + m13 * z;
+        var x_ = m21 * x + m22 * y + m23 * z;
+        var y_ = m31 * x + m32 * y + m33 * z;
 
-        //Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {location.X,-8:F2} {location.Y,-8:F2} {location.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
+        if (_settings.IsVerbose)
+        {
+            Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {location.X,-8:F2} {location.Y,-8:F2} {location.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
+        }
 
         return new Vector(x_, y_, z_);
     }
 
     // Internal
 
-    double _offsetX = 0;
-    double _offsetY = 15.99;
-    double _offsetZ = -1.12;
+    readonly Settings _settings;
+
+    readonly double _offsetX = 0;
+    readonly double _offsetY = 15.99;
+    readonly double _offsetZ = -1.12;
 
     LeapMotion? _lm = null;
     bool _isConnected = false;
