@@ -4,6 +4,10 @@ namespace VarjoDataLogger;
 
 public class HandTracker : IDisposable
 {
+    /// <summary>
+    /// Reports hand location. The coordinate system is as it used to be in the original Leap Motion:
+    /// X = left, Y = forward, Z = down
+    /// </summary>
     public event EventHandler<Vector>? Data;
 
     public bool IsReady => _lm != null;
@@ -15,12 +19,25 @@ public class HandTracker : IDisposable
 
     public bool UseFinger { get; set; } = false;
 
+    /// <summary>
+    /// Three X, Y and Z letters:
+    ///     First: uppercase = left, lowercase = right
+    ///     Second: uppercase = forward, lowercase = backward
+    ///     Third: uppercase = down, lowecase = up
+    /// Default is XYZ, i.e. left, forward, down
+    /// </summary>
+    public string CoordSystem { get; set; } = "XYZ";
+
     public HandTracker()
     {
         if (Settings.TryGetInstance(out Settings settings, out string? error))
         {
-            _offsetY = settings.LeapMotionOffset.y;
-            _offsetZ = settings.LeapMotionOffset.z;
+            _offsetY = settings.LmOffset.y;
+            _offsetZ = settings.LmOffset.z;
+
+            Console.WriteLine($"[LM] offsets: {_offsetX},{_offsetY},{_offsetZ}");
+
+            CoordSystem = settings.LmCoords;
         }
 
         try
@@ -29,22 +46,25 @@ public class HandTracker : IDisposable
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Error connecting to LeapMotion: {e.Message}");
+            Console.WriteLine($"Failed to connect to LeapMotion: {e.Message}");
         }
 
         if (_lm != null)
         {
+            _lm.Connect += Lm_Connect;
+            _lm.Disconnect += Lm_Disconnect;
+            _lm.FrameReady += Lm_FrameReady;
+
+            _lm.Device += Lm_Device;
+            _lm.DeviceLost += Lm_DeviceLost;
+            _lm.DeviceFailure += Lm_DeviceFailure;
+
             // Ask for frames even in the background - this is important!
             _lm.SetPolicy(LeapMotion.PolicyFlag.POLICY_BACKGROUND_FRAMES);
             _lm.SetPolicy(LeapMotion.PolicyFlag.POLICY_ALLOW_PAUSE_RESUME);
             _lm.SetPolicy(LeapMotion.PolicyFlag.POLICY_OPTIMIZE_HMD);
 
             _lm.ClearPolicy(LeapMotion.PolicyFlag.POLICY_IMAGES);       // NO images, please
-
-            // Subscribe to connected/not messages
-            _lm.Connect += Lmc_Connect;
-            _lm.Disconnect += Lmc_Disconnect;
-            _lm.FrameReady += Lmc_FrameReady;
         }
     }
 
@@ -52,6 +72,11 @@ public class HandTracker : IDisposable
     {
         if (_lm == null || _isConnected)
             return;
+
+        if (_lm.Devices.Count == 0)
+        {
+            Console.WriteLine("[LM] Found no devices");
+        }
 
         if (_lm.IsConnected)
         {
@@ -121,17 +146,27 @@ public class HandTracker : IDisposable
     bool _isConnected = false;
     bool _isRunning = false;
 
-    private void Lmc_Disconnect(object? sender, ConnectionLostEventArgs e)
+    private float GetCm(ref Leap.Vector vector, int id) => CoordSystem[id] switch
+    {
+        'z' => -vector.z,
+        'Z' => vector.z,
+        'y' => -vector.y,
+        'Y' => vector.y,
+        'x' => -vector.x,
+        _ => vector.x
+    } / 10;
+
+    private void Lm_Disconnect(object? sender, ConnectionLostEventArgs e)
     {
         _isConnected = false;
     }
 
-    private void Lmc_Connect(object? sender, ConnectionEventArgs e)
+    private void Lm_Connect(object? sender, ConnectionEventArgs e)
     {
         _isConnected = true;
     }
 
-    private void Lmc_FrameReady(object? sender, FrameEventArgs e)
+    private void Lm_FrameReady(object? sender, FrameEventArgs e)
     {
         if (!_isRunning)
             return;
@@ -147,9 +182,9 @@ public class HandTracker : IDisposable
                 ? e.frame.Hands[0].Fingers[1].TipPosition
                 : e.frame.Hands[0].PalmPosition;
 
-            var x = vector.x / 10;
-            var y = vector.y / 10;
-            var z = vector.z / 10;
+            var x = GetCm(ref vector, 0);
+            var y = GetCm(ref vector, 1);
+            var z = GetCm(ref vector, 2);
 
             if (Math.Sqrt(x * x + y * y + z * z) < MaxDistance)
             {
@@ -169,5 +204,20 @@ public class HandTracker : IDisposable
         // e.frame.Hands[0].PalmNormal.x
         // e.frame.Hands[iTrackHand].GrabAngle
         // e.frame.Hands[iTrackHand].PinchDistance
+    }
+
+    private void Lm_DeviceFailure(object? sender, DeviceFailureEventArgs e)
+    {
+        Console.WriteLine($"[LM] Device {e.DeviceSerialNumber} failure: {e.ErrorMessage} ({e.ErrorCode})");
+    }
+
+    private void Lm_DeviceLost(object? sender, DeviceEventArgs e)
+    {
+        Console.WriteLine($"[LM] Device {e.Device.SerialNumber} was lost");
+    }
+
+    private void Lm_Device(object? sender, DeviceEventArgs e)
+    {
+        Console.WriteLine($"[LM] Found device {e.Device.SerialNumber}");
     }
 }
