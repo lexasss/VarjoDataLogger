@@ -26,7 +26,7 @@ public class HandTracker : IDisposable
     ///     Third: uppercase = down, lowecase = up
     /// Default is XYZ, i.e. left, forward, down
     /// </summary>
-    public string CoordSystem { get; set; } = "XYZ";
+    //public string CoordSystem { get; set; } = "XYZ";
 
     public HandTracker()
     {
@@ -37,7 +37,7 @@ public class HandTracker : IDisposable
 
             Console.WriteLine($"[LM] offsets: {_offsetX},{_offsetY},{_offsetZ}");
 
-            CoordSystem = _settings.LmCoords;
+            //CoordSystem = _settings.LmCoords;
         }
 
         try
