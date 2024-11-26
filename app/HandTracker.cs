@@ -160,6 +160,7 @@ public class HandTracker : IDisposable
     bool _isConnected = false;
     bool _isRunning = false;
 
+    /*
     private float GetCm(ref Leap.Vector vector, int id) => CoordSystem[id] switch
     {
         'z' => -vector.z,
@@ -167,8 +168,9 @@ public class HandTracker : IDisposable
         'y' => -vector.y,
         'Y' => vector.y,
         'x' => -vector.x,
-        _ => vector.x
-    } / 10;
+        'X' => vector.x,
+        char c => throw new Exception($"Invalid axis '{c}'")
+    } / 10;*/
 
     private void Lm_Disconnect(object? sender, ConnectionLostEventArgs e)
     {
@@ -196,9 +198,13 @@ public class HandTracker : IDisposable
                 ? e.frame.Hands[0].Fingers[1].TipPosition
                 : e.frame.Hands[0].PalmPosition;
 
-            var x = GetCm(ref vector, 0);
-            var y = GetCm(ref vector, 1);
-            var z = GetCm(ref vector, 2);
+            var x = vector.x / 10;
+            var y = vector.y / 10;
+            var z = vector.z / 10;
+            
+            //var x = GetCm(ref vector, 0);
+            //var y = GetCm(ref vector, 1);
+            //var z = GetCm(ref vector, 2);
 
             if (Math.Sqrt(x * x + y * y + z * z) < MaxDistance)
             {
