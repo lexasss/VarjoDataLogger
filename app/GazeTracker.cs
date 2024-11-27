@@ -68,7 +68,7 @@ public partial class GazeTracker : IDisposable
 
     static partial class Interop
     {
-        private const string _dllImportPath = @"GazeTrackerLib.dll";
+        private const string _dllImportPath = @"VarjoTrackerLib.dll";
 
         [LibraryImport(_dllImportPath)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]

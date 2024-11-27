@@ -62,15 +62,15 @@ class App
         Exception? ex = connectionTask.Result;
         if (ex != null)
         {
-            Console.WriteLine($"Cannot connect to the N-Back task application: {ex.Message}.\nIs it running?");
+            Console.WriteLine($"Cannot connect to the N-Back task application on {nc.IP}:{nc.Port}. Is it running?\n  [{ex.Message}]");
         }
         else if (!nc.IsConnected)
         {
-            Console.WriteLine("Cannot connect to the N-Back task application. Is it running?");
+            Console.WriteLine($"Cannot connect to the N-Back task application on {nc.IP}:{nc.Port}. Is it running?");
         }
         else
         {
-            Console.WriteLine($"Connected to the N-Back task on {settings.IP}:{nc.Port}.");
+            Console.WriteLine($"Connected to the N-Back task on {nc.IP}:{nc.Port}.");
         }
 
         if (ht.IsReady && gt.IsReady)

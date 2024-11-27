@@ -14,7 +14,7 @@ public class Settings
     public bool UseFinger { get; set; } = false;
 
     [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '0,15,-6'")]
-    public string LmOffsetStr { get; set; } = "0,15,-6";
+    public string LmOffsetStr { get; set; } = "-6,15,0";
 
     // Maybe this is redundant and all Leap Motion devices has the same coordinate system orientation
     //[Option('c', "coords", Required = false, HelpText = "Leap Motion coordinates. Default is 'XYZ' meaning left, forward, down. Use lowercase to inverse an axis the direction")]
