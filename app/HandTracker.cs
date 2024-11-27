@@ -192,16 +192,22 @@ public class HandTracker : IDisposable
 
         bool handDetected = false;
 
-        if (e.frame.Hands.Count > 0)
+        int handIndex = 0;
+        while (handIndex < e.frame.Hands.Count && e.frame.Hands[handIndex].IsLeft)
+        {
+            handIndex++;
+        }
+
+        if (handIndex < e.frame.Hands.Count)
         {
             var vector = UseFinger
-                ? e.frame.Hands[0].Fingers[1].TipPosition
-                : e.frame.Hands[0].PalmPosition;
+                ? e.frame.Hands[handIndex].Fingers[1].TipPosition
+                : e.frame.Hands[handIndex].PalmPosition;
 
             var x = vector.x / 10;
             var y = vector.y / 10;
             var z = vector.z / 10;
-            
+
             //var x = GetCm(ref vector, 0);
             //var y = GetCm(ref vector, 1);
             //var z = GetCm(ref vector, 2);
