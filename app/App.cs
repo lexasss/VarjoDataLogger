@@ -20,7 +20,7 @@ class App
         }
 
         var nc = new NetClient();
-        var ht = new HandTracker() { UseFinger = settings.UseFinger };
+        var ht = new HandTracker();
         var gt = new GazeTracker();
 
         int i = 0;

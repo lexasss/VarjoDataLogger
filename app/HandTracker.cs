@@ -17,7 +17,10 @@ public class HandTracker : IDisposable
     /// </summary>
     public double MaxDistance { get; set; } = 80;
 
-    public bool UseFinger { get; set; } = false;
+    /// <summary>
+    /// Finger ID to track, 0-4 starting from the thumb. '-1' means that the palm is used instead of a finger.
+    /// </summary>
+    public int Finger { get; set; } = -1;
 
     /// <summary>
     /// Three X, Y and Z letters:
@@ -34,9 +37,10 @@ public class HandTracker : IDisposable
         {
             _offsetY = _settings.LmOffset.y;
             _offsetZ = _settings.LmOffset.z;
-
+           
             Console.WriteLine($"[LM] offsets: {_offsetX},{_offsetY},{_offsetZ}");
 
+            Finger = _settings.Finger;
             //CoordSystem = _settings.LmCoords;
         }
 
@@ -200,8 +204,8 @@ public class HandTracker : IDisposable
 
         if (handIndex < e.frame.Hands.Count)
         {
-            var vector = UseFinger
-                ? e.frame.Hands[handIndex].Fingers[1].TipPosition
+            var vector = Finger >= 0 && Finger < 4
+                ? e.frame.Hands[handIndex].Fingers[_settings.Finger].TipPosition
                 : e.frame.Hands[handIndex].PalmPosition;
 
             var x = vector.x / 10;
