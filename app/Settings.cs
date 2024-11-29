@@ -10,9 +10,6 @@ public class Settings
     [Option('l', "log", Required = false, HelpText = "Log file folder, must be without spaces. Default is 'MyDocuments'")]
     public string LogFolder { get; set; }
 
-    [Option('f', "finger", Required = false, HelpText = "Finger ID to track, 0-4 starting from the thumb. Default is '-1', meaning that the palm is used instead of a finger")]
-    public int Finger { get; set; } = -1;
-
     [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '0,15,-6'")]
     public string LmOffsetStr { get; set; } = "-6,15,0";
 

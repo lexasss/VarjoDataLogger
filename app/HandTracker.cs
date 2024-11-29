@@ -2,13 +2,23 @@
 
 namespace VarjoDataLogger;
 
+public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle)
+{
+    public Vector Palm { get; set; } = palm;
+    public Vector Thumb { get; set; } = thumb;
+    public Vector Index { get; set; } = index;
+    public Vector Middle { get; set; } = middle;
+    public HandLocation() : this(Vector.Zero, Vector.Zero, Vector.Zero, Vector.Zero) { }
+}
+
 public class HandTracker : IDisposable
 {
     /// <summary>
-    /// Reports hand location. The coordinate system is as it used to be in the original Leap Motion:
+    /// Reports hand location as 3 vectors: palm, infdex finger tip and middle finger tip.
+    /// The coordinate system is as it used to be in the original Leap Motion:
     /// X = left, Y = forward, Z = down
     /// </summary>
-    public event EventHandler<Vector>? Data;
+    public event EventHandler<HandLocation>? Data;
 
     public bool IsReady => _lm != null;
 
@@ -16,11 +26,6 @@ public class HandTracker : IDisposable
     /// Maximum distance for the hand to be tracked, in cm
     /// </summary>
     public double MaxDistance { get; set; } = 80;
-
-    /// <summary>
-    /// Finger ID to track, 0-4 starting from the thumb. '-1' means that the palm is used instead of a finger.
-    /// </summary>
-    public int Finger { get; set; } = -1;
 
     /// <summary>
     /// Three X, Y and Z letters:
@@ -40,7 +45,6 @@ public class HandTracker : IDisposable
            
             Console.WriteLine($"[LM] offsets: {_offsetX},{_offsetY},{_offsetZ}");
 
-            Finger = _settings.Finger;
             //CoordSystem = _settings.LmCoords;
         }
 
@@ -165,7 +169,7 @@ public class HandTracker : IDisposable
     bool _isRunning = false;
 
     /*
-    private float GetCm(ref Leap.Vector vector, int id) => CoordSystem[id] switch
+    private float GetMm(ref Leap.Vector vector, int id) => CoordSystem[id] switch
     {
         'z' => -vector.z,
         'Z' => vector.z,
@@ -174,7 +178,7 @@ public class HandTracker : IDisposable
         'x' => -vector.x,
         'X' => vector.x,
         char c => throw new Exception($"Invalid axis '{c}'")
-    } / 10;*/
+    };*/
 
     private void Lm_Disconnect(object? sender, ConnectionLostEventArgs e)
     {
@@ -204,28 +208,22 @@ public class HandTracker : IDisposable
 
         if (handIndex < e.frame.Hands.Count)
         {
-            var vector = Finger >= 0 && Finger < 4
-                ? e.frame.Hands[handIndex].Fingers[_settings.Finger].TipPosition
-                : e.frame.Hands[handIndex].PalmPosition;
+            var palm = e.frame.Hands[handIndex].PalmPosition;
+            var fingers = e.frame.Hands[handIndex].Fingers;
+            var thumb = fingers[0].TipPosition;
+            var index = fingers[1].TipPosition;
+            var middle = fingers[2].TipPosition;
 
-            var x = vector.x / 10;
-            var y = vector.y / 10;
-            var z = vector.z / 10;
-
-            //var x = GetCm(ref vector, 0);
-            //var y = GetCm(ref vector, 1);
-            //var z = GetCm(ref vector, 2);
-
-            if (Math.Sqrt(x * x + y * y + z * z) < MaxDistance)
+            if (Math.Sqrt(palm.x * palm.x + palm.y * palm.y + palm.z * palm.z) < MaxDistance)
             {
                 handDetected = true;
-                Data?.Invoke(this, new Vector(x, y, z));
+                Data?.Invoke(this, new HandLocation(Vector.From(in palm), Vector.From(in thumb), Vector.From(in index), Vector.From(in middle)));
             }
         }
 
         if (!handDetected)
         {
-            Data?.Invoke(this, Vector.Zero);
+            Data?.Invoke(this, new HandLocation());
         }
 
         // e.frame.Hands[0].Fingers[0..4].TipPosition.x;
