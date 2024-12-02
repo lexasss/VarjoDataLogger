@@ -17,3 +17,19 @@ public record class EyeHead(long Timestamp, Rotation Eye, Rotation Head)
 {
     public static EyeHead Empty => new(0, Rotation.Zero, Rotation.Zero);
 }
+
+public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle)
+{
+    public Vector Palm { get; set; } = palm;
+    public Vector Thumb { get; set; } = thumb;
+    public Vector Index { get; set; } = index;
+    public Vector Middle { get; set; } = middle;
+    public HandLocation() : this(Vector.Zero, Vector.Zero, Vector.Zero, Vector.Zero) { }
+    public void CopyTo(HandLocation rhs)
+    {
+        rhs.Palm = Palm;
+        rhs.Thumb = Thumb;
+        rhs.Index = Index;
+        rhs.Middle = Middle;
+    }
+}

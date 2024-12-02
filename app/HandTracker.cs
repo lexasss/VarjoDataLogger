@@ -2,15 +2,6 @@
 
 namespace VarjoDataLogger;
 
-public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle)
-{
-    public Vector Palm { get; set; } = palm;
-    public Vector Thumb { get; set; } = thumb;
-    public Vector Index { get; set; } = index;
-    public Vector Middle { get; set; } = middle;
-    public HandLocation() : this(Vector.Zero, Vector.Zero, Vector.Zero, Vector.Zero) { }
-}
-
 public class HandTracker : IDisposable
 {
     /// <summary>
@@ -112,48 +103,58 @@ public class HandTracker : IDisposable
     /// <param name="headAngles">Head Euler angles</param>
     /// <param name="location">Hand location</param>
     /// <returns></returns>
-    public Vector ConvertLeapMotionCoordsToVarjoCoords(Rotation headAngles, Vector location)
+    public HandLocation CompensateHeadRotation(Rotation headAngles, HandLocation location)
     {
-        // translation
-        var x = location.Z + _offsetZ;
-        var y = location.X + _offsetX;
-        var z = location.Y + _offsetY;
-
-        // preparing rotation
-        var a = -headAngles.Yaw.ToRad();
-        var b = -headAngles.Pitch.ToRad();
-        var c = -headAngles.Roll.ToRad();
-
-        var sinA = Math.Sin(a);
-        var sinB = Math.Sin(b);
-        var sinC = Math.Sin(c);
-        var cosA = Math.Cos(a);
-        var cosB = Math.Cos(b);
-        var cosC = Math.Cos(c);
-
-        var m11 = cosB * cosC;
-        var m21 = cosB * sinC;
-        var m31 = -sinB;
-
-        var m12 = sinA * sinB * cosC - cosA * sinC;
-        var m22 = sinA * sinB * sinC + cosA * cosC;
-        var m32 = sinA * cosB;
-
-        var m13 = cosA * sinB * cosC + sinA * sinC;
-        var m23 = cosA * sinB * sinC - sinA * cosC;
-        var m33 = cosA * cosB;
-
-        // rotation
-        var z_ = m11 * x + m12 * y + m13 * z;
-        var x_ = m21 * x + m22 * y + m23 * z;
-        var y_ = m31 * x + m32 * y + m33 * z;
-
-        if (_settings.IsVerbose)
+        Vector Transform(Vector vec)
         {
-            Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {location.X,-8:F2} {location.Y,-8:F2} {location.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
+            // translation
+            var x = vec.Z + _offsetZ;
+            var y = vec.X + _offsetX;
+            var z = vec.Y + _offsetY;
+
+            // preparing rotation
+            var a = -headAngles.Yaw.ToRad();
+            var b = -headAngles.Pitch.ToRad();
+            var c = -headAngles.Roll.ToRad();
+
+            var sinA = Math.Sin(a);
+            var sinB = Math.Sin(b);
+            var sinC = Math.Sin(c);
+            var cosA = Math.Cos(a);
+            var cosB = Math.Cos(b);
+            var cosC = Math.Cos(c);
+
+            var m11 = cosB * cosC;
+            var m21 = cosB * sinC;
+            var m31 = -sinB;
+
+            var m12 = sinA * sinB * cosC - cosA * sinC;
+            var m22 = sinA * sinB * sinC + cosA * cosC;
+            var m32 = sinA * cosB;
+
+            var m13 = cosA * sinB * cosC + sinA * sinC;
+            var m23 = cosA * sinB * sinC - sinA * cosC;
+            var m33 = cosA * cosB;
+
+            // rotation
+            var z_ = m11 * x + m12 * y + m13 * z;
+            var x_ = m21 * x + m22 * y + m23 * z;
+            var y_ = m31 * x + m32 * y + m33 * z;
+
+            if (_settings.IsVerbose)
+            {
+                Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {vec.X,-8:F2} {vec.Y,-8:F2} {vec.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
+            }
+
+            return new Vector(x_, y_, z_);
         }
 
-        return new Vector(x_, y_, z_);
+        return new HandLocation(
+            Transform(location.Palm),
+            Transform(location.Thumb),
+            Transform(location.Index),
+            Transform(location.Middle)
+        );
     }
 
     // Internal

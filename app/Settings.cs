@@ -25,10 +25,16 @@ public class Settings
         get
         {
             var p = LmOffsetStr.Split(",");
-            float.TryParse(p.Length > 2 ? p[2] : "0", out float x);
-            float.TryParse(p.Length > 1 ? p[1] : "0", out float y);
-            float.TryParse(p[0], out float z);
-            return new Leap.Vector(x, y, z);
+            if (float.TryParse(p.Length > 2 ? p[2] : "0", out float x) &&
+                float.TryParse(p.Length > 1 ? p[1] : "0", out float y) &&
+                float.TryParse(p[0], out float z))
+            {
+                return new Leap.Vector(x, y, z);
+            }
+            else
+            {
+                return new Leap.Vector();
+            }
         }
     }
 

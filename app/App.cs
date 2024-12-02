@@ -30,17 +30,11 @@ class App
 
         ht.Data += (s, e) =>
         {
-            var palm = ht.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e.Palm);
-            var thumb = ht.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e.Thumb);
-            var index = ht.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e.Index);
-            var middle = ht.ConvertLeapMotionCoordsToVarjoCoords(gt.HeadRotation, e.Middle);
+            var handLoc = ht.CompensateHeadRotation(gt.HeadRotation, e);
 
             lock (_handLocation)
             {
-                _handLocation.Palm = palm;
-                _handLocation.Thumb = thumb;
-                _handLocation.Index = index;
-                _handLocation.Middle = middle;
+                handLoc.CopyTo(_handLocation);
             }
         };
 
@@ -48,9 +42,7 @@ class App
         {
             lock (_handLocation)
             {
-                _logger.Add(e.Timestamp,
-                    e.Eye.Yaw, e.Eye.Pitch,
-                    e.Head.Yaw, e.Head.Pitch,
+                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch,
                     _handLocation.Palm.X, _handLocation.Palm.Y, _handLocation.Palm.Z,
                     _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
                     _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
