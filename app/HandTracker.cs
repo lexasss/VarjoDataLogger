@@ -209,11 +209,11 @@ public class HandTracker : IDisposable
 
         if (handIndex < e.frame.Hands.Count)
         {
-            var palm = e.frame.Hands[handIndex].PalmPosition;
+            var palm = e.frame.Hands[handIndex].PalmPosition / 10;
             var fingers = e.frame.Hands[handIndex].Fingers;
-            var thumb = fingers[0].TipPosition;
-            var index = fingers[1].TipPosition;
-            var middle = fingers[2].TipPosition;
+            var thumb = fingers[0].TipPosition / 10;
+            var index = fingers[1].TipPosition / 10;
+            var middle = fingers[2].TipPosition / 10;
 
             if (Math.Sqrt(palm.x * palm.x + palm.y * palm.y + palm.z * palm.z) < MaxDistance)
             {

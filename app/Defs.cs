@@ -7,6 +7,13 @@ public class Vector(double x, double y, double z)
     public double Z { get; set; } = z;
     public static Vector Zero => new(0, 0, 0);
     public static Vector From(ref readonly Leap.Vector v) => new(v.x, v.y, v.z);
+    public static Vector operator /(Vector self, double div)
+    {
+        self.X /= div;
+        self.Y /= div;
+        self.Z /= div;
+        return self;
+    }
 }
 public record class Rotation(double Pitch, double Yaw, double Roll)
 {
