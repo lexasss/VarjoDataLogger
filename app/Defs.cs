@@ -7,13 +7,8 @@ public class Vector(double x, double y, double z)
     public double Z { get; set; } = z;
     public static Vector Zero => new(0, 0, 0);
     public static Vector From(ref readonly Leap.Vector v) => new(v.x, v.y, v.z);
-    public static Vector operator /(Vector self, double div)
-    {
-        self.X /= div;
-        self.Y /= div;
-        self.Z /= div;
-        return self;
-    }
+    public static Vector operator / (Vector obj, double div) => new Vector(obj.X / div, obj.Y / div, obj.Z / div);
+    public static Vector operator * (Vector obj, double mul) => new Vector(obj.X * mul, obj.Y * mul, obj.Z * mul);
 }
 public record class Rotation(double Pitch, double Yaw, double Roll)
 {

@@ -19,14 +19,21 @@ class App
             return;
         }
 
-        var nc = new NetClient();
+        var nbtClient = new NetClient();
+        var cttClient = new NetClient();
+
         var ht = new HandTracker();
         var gt = new GazeTracker();
 
         int i = 0;
-        string nbackTaskMessage = "";
 
-        nc.Message += (s, e) => nbackTaskMessage = e;
+        nbtClient.Message += (s, e) =>
+        {
+            lock (_nbackTaskMessage)
+            {
+                _nbackTaskMessage = e;
+            }
+        };
 
         ht.Data += (s, e) =>
         {
@@ -40,6 +47,13 @@ class App
 
         gt.Data += (s, e) =>
         {
+            string eventInfo;
+            lock (_nbackTaskMessage)
+            {
+                eventInfo = _nbackTaskMessage;
+                _nbackTaskMessage = "";
+            }
+
             lock (_handLocation)
             {
                 _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch,
@@ -47,9 +61,7 @@ class App
                     _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
                     _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
                     _handLocation.Middle.X, _handLocation.Middle.Y, _handLocation.Middle.Z,
-                    nbackTaskMessage);
-
-                nbackTaskMessage = "";
+                    eventInfo);
 
                 if ((i++ % 30) == 0)
                 {
@@ -65,30 +77,60 @@ class App
 
         Console.WriteLine();
 
-        var connectionTask = nc.Connect(settings.IP);
-        connectionTask.Wait();
+        var nbackConnTask = nbtClient.Connect(settings.NBackTaskIP, NetClient.NBackTaskPort);
+        nbackConnTask.Wait();
 
-        Exception? ex = connectionTask.Result;
+        Exception? ex = nbackConnTask.Result;
         if (ex != null)
         {
-            Console.WriteLine($"Cannot connect to the N-Back task application on {nc.IP}:{nc.Port}. Is it running?\n  [{ex.Message}]");
+            Console.WriteLine($"Cannot connect to the N-Back task on {nbtClient.IP}:{nbtClient.Port}. Is it running?\n  [{ex.Message}]");
         }
-        else if (!nc.IsConnected)
+        else if (!nbtClient.IsConnected)
         {
-            Console.WriteLine($"Cannot connect to the N-Back task application on {nc.IP}:{nc.Port}. Is it running?");
+            Console.WriteLine($"Cannot connect to the N-Back task on {nbtClient.IP}:{nbtClient.Port}. Is it running?");
         }
         else
         {
-            Console.WriteLine($"Connected to the N-Back task on {nc.IP}:{nc.Port}.");
+            Console.WriteLine($"Connected to the N-Back task on {nbtClient.IP}:{nbtClient.Port}.");
         }
 
-        if (ht.IsReady && gt.IsReady)
+        var cttConnTask = cttClient.Connect(settings.CttIP, NetClient.CttPort);
+        cttConnTask.Wait();
+
+        ex = cttConnTask.Result;
+        if (ex != null)
+        {
+            Console.WriteLine($"Cannot connect to the CTT on {cttClient.IP}:{cttClient.Port}. Is it running?\n  [{ex.Message}]");
+        }
+        else if (!cttClient.IsConnected)
+        {
+            Console.WriteLine($"Cannot connect to the CTT on {cttClient.IP}:{cttClient.Port}. Is it running?");
+        }
+        else
+        {
+            Console.WriteLine($"Connected to the CTT on {cttClient.IP}:{cttClient.Port}.");
+        }
+
+        if ((ht.IsReady && gt.IsReady) || settings.IsDebugMode)
         {
             Console.WriteLine("Press ENTER to start logging");
             Console.ReadLine();
 
             ht.Run();
             gt.Run();
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                if (nbtClient.IsConnected)
+                {
+                    nbtClient.Send("start");
+                }
+                if (cttClient.IsConnected)
+                {
+                    cttClient.Send("start");
+                }
+            });
 
             Console.ReadLine();
 
@@ -102,10 +144,22 @@ class App
             Console.WriteLine("Not all devices are ready. Exiting...");
         }
 
-        nc.Dispose();
+        if (nbtClient.IsConnected)
+        {
+            nbtClient.Send("stop");
+        }
+        if (cttClient.IsConnected)
+        {
+            cttClient.Send("stop");
+        }
+
+        nbtClient.Dispose();
+        cttClient.Dispose();
     }
 
     readonly static HandLocation _handLocation = new();
 
     readonly static Logger _logger = Logger.Instance;
+
+    static string _nbackTaskMessage = "";
 }

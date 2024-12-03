@@ -4,13 +4,16 @@ namespace VarjoDataLogger;
 
 public class Settings
 {
-    [Option("ip", Required = false, HelpText = "IP address of the PC running N-Back task application. Default is '127.0.0.1'")]
-    public string IP { get; set; } = "127.0.0.1";
+    [Option('n', "nbtip", Required = false, HelpText = "IP address of the PC running N-Back task application. Default is '127.0.0.1'")]
+    public string NBackTaskIP { get; set; } = "127.0.0.1";
+
+    [Option('c', "cttip", Required = false, HelpText = "IP address of the PC running CTT application. Default is '127.0.0.1'")]
+    public string CttIP { get; set; } = "127.0.0.1";
 
     [Option('l', "log", Required = false, HelpText = "Log file folder, must be without spaces. Default is 'MyDocuments'")]
     public string LogFolder { get; set; }
 
-    [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '0,15,-6'")]
+    [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '-6,15,0'")]
     public string LmOffsetStr { get; set; } = "-6,15,0";
 
     // Maybe this is redundant and all Leap Motion devices has the same coordinate system orientation
@@ -19,6 +22,9 @@ public class Settings
 
     [Option('v', "verbose", Required = false, HelpText = "Debug info is printed in the verbose mode. Default is 'false'")]
     public bool IsVerbose { get; set; } = false;
+
+    [Option('d', "debug", Required = false, HelpText = "Sets to the debug mode. Default is 'false'")]
+    public bool IsDebugMode { get; set; } = false;
 
     public Leap.Vector LmOffset
     {

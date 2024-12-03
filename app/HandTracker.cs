@@ -162,8 +162,8 @@ public class HandTracker : IDisposable
     readonly Settings _settings;
 
     readonly double _offsetX = 0;
-    readonly double _offsetY = 15.99;
-    readonly double _offsetZ = -1.12;
+    readonly double _offsetY = 15.0;   // cm
+    readonly double _offsetZ = -6.0;   // cm
 
     LeapMotion? _lm = null;
     bool _isConnected = false;

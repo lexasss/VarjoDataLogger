@@ -1,11 +1,15 @@
 ﻿using System.Net.Sockets;
+using System.Text;
 
 namespace VarjoDataLogger;
 
 public class NetClient : IDisposable
 {
+    public static int NBackTaskPort => 8963;
+    public static int CttPort => 8964;
+
     public string IP { get; private set; } = "127.0.0.1";
-    public int Port { get; private set; } = 8963;
+    public int Port { get; private set; }
     public bool IsConnected { get; private set; } = false;
 
     public event EventHandler<string>? Message;
@@ -18,13 +22,13 @@ public class NetClient : IDisposable
         _client = new TcpClient();
     }
 
-    public async Task<Exception?> Connect(string? ip = null, int? port = null, int timeout = 3000)
+    public async Task<Exception?> Connect(string ip, int port, int timeout = 3000)
     {
         if (_readingThread is not null)
             return new Exception($"The client is connected already");
 
-        IP = ip ?? IP;
-        Port = port ?? Port;
+        IP = ip;
+        Port = port;
 
         try
         {
@@ -49,6 +53,12 @@ public class NetClient : IDisposable
         return null;
     }
 
+    public void Send(string message)
+    {
+        var bytes = Encoding.ASCII.GetBytes(message + "\n");
+        _stream?.WriteAsync(bytes, 0, bytes.Length);
+    }
+
     public async Task Stop()
     {
         IsConnected = false;
@@ -70,13 +80,14 @@ public class NetClient : IDisposable
 
     readonly TcpClient _client;
 
+    NetworkStream? _stream;
     Thread? _readingThread;
 
     private void ReadInLoop()
     {
         Connected?.Invoke(this, new EventArgs());
 
-        NetworkStream stream = _client.GetStream();
+        _stream = _client.GetStream();
         var decoder = new System.Text.ASCIIEncoding();
 
         try
@@ -84,7 +95,7 @@ public class NetClient : IDisposable
             do
             {
                 byte[] buffer = new byte[16];
-                var byteCount = stream.Read(buffer);
+                var byteCount = _stream.Read(buffer);
 
                 if (byteCount == 0)
                 {
@@ -113,7 +124,7 @@ public class NetClient : IDisposable
         IsConnected = false;    // Set it if the thread was closed internally by error
         _readingThread = null;
 
-        stream.Dispose();
+        _stream.Dispose();
 
         Disconnected?.Invoke(this, new EventArgs());
     }
