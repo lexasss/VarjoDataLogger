@@ -114,8 +114,7 @@ public class NetClient : IDisposable
                     }
                 }
 
-
-                Message?.Invoke(this, decoder.GetString(buffer));
+                Message?.Invoke(this, decoder.GetString(buffer.TakeWhile(b => b != '\0').ToArray()));
 
             } while (IsConnected);
         }

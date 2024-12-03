@@ -26,12 +26,19 @@ class App
         var gt = new GazeTracker();
 
         int i = 0;
+        bool hasFinished = false;
 
         nbtClient.Message += (s, e) =>
         {
             lock (_nbackTaskMessage)
             {
                 _nbackTaskMessage = e;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Received: {e}");
+            if (e.StartsWith("FIN"))
+            {
+                hasFinished = true;
             }
         };
 
@@ -132,7 +139,13 @@ class App
                 }
             });
 
-            Console.ReadLine();
+            Console.WriteLine("Press any key to interrupt");
+            while (!hasFinished)
+            {
+                Thread.Sleep(100);
+                if (Console.KeyAvailable)
+                    break;
+            }
 
             ht.Dispose();
             gt.Dispose();
