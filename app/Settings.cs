@@ -16,15 +16,15 @@ public class Settings
     [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '-6,15,0'")]
     public string LmOffsetStr { get; set; } = "-6,15,0";
 
-    // Maybe this is redundant and all Leap Motion devices has the same coordinate system orientation
-    //[Option('c', "coords", Required = false, HelpText = "Leap Motion coordinates. Default is 'XYZ' meaning left, forward, down. Use lowercase to inverse an axis the direction")]
-    //public string LmCoords { get; set; } = "XYZ";
-
     [Option('v', "verbose", Required = false, HelpText = "Debug info is printed in the verbose mode. Default is 'false'")]
     public bool IsVerbose { get; set; } = false;
 
     [Option('d', "debug", Required = false, HelpText = "Sets to the debug mode. Default is 'false'")]
     public bool IsDebugMode { get; set; } = false;
+
+    // Maybe this is redundant and all Leap Motion devices has the same coordinate system orientation
+    //[Option('c', "coords", Required = false, HelpText = "Leap Motion coordinates. Default is 'XYZ' meaning left, forward, down. Use lowercase to inverse an axis the direction")]
+    //public string LmCoords { get; set; } = "XYZ";
 
     public Leap.Vector LmOffset
     {
@@ -66,28 +66,12 @@ public class Settings
     /// </summary>
     public Settings()
     {
-        /*
-        var settings = Properties.Settings.Default;
-
-        _logFolder = settings.LogFolder;
-        */
-
         if (string.IsNullOrEmpty(LogFolder))
         {
             LogFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         }
     }
 
-    public void Save()
-    {
-        /*
-        var settings = Properties.Settings.Default;
-
-        settings.LogFolder = LogFolder;
-
-        settings.Save();
-        */
-    }
 
     // Internal
 
@@ -98,10 +82,10 @@ public class Settings
         var args = Environment.GetCommandLineArgs()[1..];
         var settings = Parser.Default.ParseArguments<Settings>(args);
 
-        bool missesRequired = false;
-        settings.WithNotParsed(errors => missesRequired = errors.Any(error => error is MissingRequiredOptionError));
+        bool missesRequiredSettings = false;
+        settings.WithNotParsed(errors => missesRequiredSettings = missesRequiredSettings || errors.Any(error => error is MissingRequiredOptionError));
 
-        if (missesRequired)
+        if (missesRequiredSettings)
             throw new Exception("Missing required options");
 
         return settings.Value ?? new Settings();
