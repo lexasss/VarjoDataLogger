@@ -149,6 +149,15 @@ class App
 
             Console.WriteLine("Exiting....");
 
+            if (nbtClient.IsConnected)
+            {
+                nbtClient.Send("stop");
+            }
+            if (cttClient.IsConnected)
+            {
+                cttClient.Send("stop");
+            }
+
             ht.Dispose();
             gt.Dispose();
 
@@ -157,15 +166,6 @@ class App
         else
         {
             Console.WriteLine("Not all devices are ready. Exiting...");
-        }
-
-        if (nbtClient.IsConnected)
-        {
-            nbtClient.Send("stop");
-        }
-        if (cttClient.IsConnected)
-        {
-            cttClient.Send("stop");
         }
 
         nbtClient.Dispose();

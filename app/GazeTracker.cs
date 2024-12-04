@@ -31,7 +31,7 @@ public partial class GazeTracker : IDisposable
 
             Data?.Invoke(this, new EyeHead(timestamp, new Rotation(pitch, yaw, 0), new Rotation(headPitch, headYaw, headRoll)));
 
-            return _thread?.ThreadState == ThreadState.Running;
+            return _isRunning;
         }
 
         Interop.GazeCallback action = new(Callback);
@@ -48,7 +48,8 @@ public partial class GazeTracker : IDisposable
 
     public void Dispose()
     {
-        _thread?.Interrupt();
+        _isRunning = false;
+
         _thread?.Join();
 
         _thread = null;
