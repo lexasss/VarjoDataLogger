@@ -35,7 +35,7 @@ class App
                 _nbackTaskMessage = e;
             }
 
-            System.Diagnostics.Debug.WriteLine($"Received: {e}");
+            Console.WriteLine($"[NBT] Received: {e}");
             if (e.StartsWith("FIN"))
             {
                 hasFinished = true;
@@ -146,6 +146,8 @@ class App
                 if (Console.KeyAvailable)
                     break;
             }
+
+            Console.WriteLine("Exiting....");
 
             ht.Dispose();
             gt.Dispose();

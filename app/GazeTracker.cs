@@ -21,7 +21,7 @@ public partial class GazeTracker : IDisposable
         if (!_isInitilized || _isRunning)
             return;
 
-        void Callback(long timestamp, double eyeRotX, double eyeRotY, double eyeRotZ, double headPitch, double headYaw, double headRoll)
+        bool Callback(long timestamp, double eyeRotX, double eyeRotY, double eyeRotZ, double headPitch, double headYaw, double headRoll)
         {
             double oneOverZ = 1.0 / eyeRotZ;
             var yaw = RadiansToDegrees * Math.Atan(eyeRotX * oneOverZ);
@@ -30,6 +30,8 @@ public partial class GazeTracker : IDisposable
             HeadRotation = new(headPitch, headYaw, headRoll);
 
             Data?.Invoke(this, new EyeHead(timestamp, new Rotation(pitch, yaw, 0), new Rotation(headPitch, headYaw, headRoll)));
+
+            return _thread?.ThreadState == ThreadState.Running;
         }
 
         Interop.GazeCallback action = new(Callback);
@@ -75,7 +77,7 @@ public partial class GazeTracker : IDisposable
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Init();
 
-        public delegate void GazeCallback(long timestamp, double eyeRotX, double eyeRotY, double eyeRotZ, double headPitch, double headYaw, double headRoll);
+        public delegate bool GazeCallback(long timestamp, double eyeRotX, double eyeRotY, double eyeRotZ, double headPitch, double headYaw, double headRoll);
 
         [LibraryImport(_dllImportPath)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
