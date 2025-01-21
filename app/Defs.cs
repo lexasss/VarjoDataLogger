@@ -15,9 +15,15 @@ public record class Rotation(double Pitch, double Yaw, double Roll)
     public static Rotation Zero => new(0, 0, 0);
 }
 
-public record class EyeHead(long Timestamp, Rotation Eye, Rotation Head)
+public record class Pupil(float OpennessLeft, float SizeLeft, float OpennessRight, float SizeRight)
 {
-    public static EyeHead Empty => new(0, Rotation.Zero, Rotation.Zero);
+    public static Pupil Zero => new(0, 0, 0, 0);
+}
+
+
+public record class EyeHead(long Timestamp, Rotation Eye, Rotation Head, Pupil Pupil)
+{
+    public static EyeHead Empty => new(0, Rotation.Zero, Rotation.Zero, Pupil.Zero);
 }
 
 public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle)

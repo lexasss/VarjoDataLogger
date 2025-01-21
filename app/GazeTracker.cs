@@ -21,7 +21,11 @@ public partial class GazeTracker : IDisposable
         if (!_isInitilized || _isRunning)
             return;
 
-        bool Callback(long timestamp, double eyeRotX, double eyeRotY, double eyeRotZ, double headPitch, double headYaw, double headRoll)
+        bool Callback(long timestamp,
+            double eyeRotX, double eyeRotY, double eyeRotZ,
+            double headPitch, double headYaw, double headRoll,
+            float pupilOpennessLeft, float pupilSizeLeft,
+            float pupilOpennessRight, float pupilSizeRight)
         {
             double oneOverZ = 1.0 / eyeRotZ;
             var yaw = RadiansToDegrees * Math.Atan(eyeRotX * oneOverZ);
@@ -29,7 +33,10 @@ public partial class GazeTracker : IDisposable
 
             HeadRotation = new(headPitch, headYaw, headRoll);
 
-            Data?.Invoke(this, new EyeHead(timestamp, new Rotation(pitch, yaw, 0), new Rotation(headPitch, headYaw, headRoll)));
+            Data?.Invoke(this, new EyeHead(timestamp,
+                new Rotation(pitch, yaw, 0),
+                new Rotation(headPitch, headYaw, headRoll),
+                new Pupil(pupilOpennessLeft, pupilSizeLeft, pupilOpennessRight, pupilSizeRight)));
 
             return _isRunning;
         }
@@ -50,8 +57,9 @@ public partial class GazeTracker : IDisposable
     {
         _isRunning = false;
 
-        _thread?.Join();
+        Interop.Terminate();
 
+        _thread?.Join();
         _thread = null;
 
         GC.SuppressFinalize(this);
@@ -78,11 +86,19 @@ public partial class GazeTracker : IDisposable
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Init();
 
-        public delegate bool GazeCallback(long timestamp, double eyeRotX, double eyeRotY, double eyeRotZ, double headPitch, double headYaw, double headRoll);
+        public delegate bool GazeCallback(long timestamp,
+            double eyeRotX, double eyeRotY, double eyeRotZ,
+            double headPitch, double headYaw, double headRoll,
+            float pupilOpennessLeft, float pupilSizeLeft,
+            float pupilOpennessRight, float pupilSizeRight);
 
         [LibraryImport(_dllImportPath)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Run(IntPtr cb);
+
+        [LibraryImport(_dllImportPath)]
+        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        public static partial void Terminate();
     }
 }

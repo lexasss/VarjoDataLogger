@@ -1,5 +1,4 @@
-﻿using System.Runtime;
-using System.Windows.Forms;
+﻿using System.Windows.Forms;
 
 namespace VarjoDataLogger;
 
