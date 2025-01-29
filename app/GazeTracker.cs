@@ -82,7 +82,7 @@ public partial class GazeTracker : IDisposable
         private const string _dllImportPath = @"VarjoTrackerLib.dll";
 
         [LibraryImport(_dllImportPath)]
-        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Init();
 
@@ -93,12 +93,12 @@ public partial class GazeTracker : IDisposable
             float pupilOpennessRight, float pupilSizeRight);
 
         [LibraryImport(_dllImportPath)]
-        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool Run(IntPtr cb);
 
         [LibraryImport(_dllImportPath)]
-        [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
+        [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvCdecl)])]
         public static partial void Terminate();
     }
 }

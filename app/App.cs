@@ -28,6 +28,11 @@ class App
         int i = 0;
         bool hasFinished = false;
 
+        Console.CancelKeyPress += (sender, eventArgs) => {
+            eventArgs.Cancel = true;
+            hasFinished = true;
+        };
+
         nbtClient.Message += (s, e) =>
         {
             lock (_nbackTaskMessage)
