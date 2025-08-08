@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Title>Varjo Data Logger</Title>
+    <Authors>Oleg Spakov</Authors>
+    <Company>Tampere University</Company>
+    <Description>Log data received from Varjo XR headset while synchronizing CTT and N-Back Task applications</Description>
   </PropertyGroup>
 
   <ItemGroup>
