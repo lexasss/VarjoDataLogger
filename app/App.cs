@@ -114,7 +114,10 @@ class App
             Console.WriteLine("Press ENTER to start logging");
             Console.ReadLine();
 
-            WinUtils.MinimizeToTray();
+            if (settings.IsHiddenWhileTracking)
+            {
+                WinUtils.HideConsoleWindow();
+            }
 
             handTotalSampleCount = 0;
             handValidSampleCount = 0;
@@ -162,7 +165,10 @@ class App
 
             _logger.Save();
 
-            WinUtils.RestoreFromTray();
+            if (settings.IsHiddenWhileTracking)
+            {
+                WinUtils.ShowConsoleWindow();
+            }
         }
         else
         {

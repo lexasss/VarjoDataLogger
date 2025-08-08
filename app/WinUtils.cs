@@ -4,10 +4,10 @@ namespace VarjoDataLogger;
 
 internal static class WinUtils
 {
-    public static void MinimizeToTray() => 
+    public static void HideConsoleWindow() => 
         ShowWindow(GetConsoleWindow(), SW_MINIMIZE);
 
-    public static void RestoreFromTray() =>
+    public static void ShowConsoleWindow() =>
         ShowWindow(GetConsoleWindow(), SW_SHOWNORMAL);
 
     // Internal

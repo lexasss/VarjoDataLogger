@@ -16,10 +16,13 @@ public class Settings
     [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '-6,15,0'")]
     public string LmOffsetStr { get; set; } = "-6,15,0";
 
-    [Option('v', "verbose", Required = false, HelpText = "Debug info is printed in the verbose mode. Default is 'false'")]
+    [Option('h', "hide", Required = false, HelpText = "Forces the console window to be hidden (minimized) while the tracking is on.")]
+    public bool IsHiddenWhileTracking { get; set; } = false;
+
+    [Option('v', "verbose", Required = false, HelpText = "Debug info is printed in the verbose mode.")]
     public bool IsVerbose { get; set; } = false;
 
-    [Option('d', "debug", Required = false, HelpText = "Sets to the debug mode. Default is 'false'")]
+    [Option('d', "debug", Required = false, HelpText = "Sets to the debug mode.")]
     public bool IsDebugMode { get; set; } = false;
 
     // Maybe this is redundant and all Leap Motion devices has the same coordinate system orientation

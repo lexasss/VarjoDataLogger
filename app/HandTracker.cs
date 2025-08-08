@@ -34,7 +34,7 @@ public class HandTracker : IDisposable
             _offsetY = _settings.LmOffset.y;
             _offsetZ = _settings.LmOffset.z;
            
-            Console.WriteLine($"[LM] offsets: {_offsetX},{_offsetY},{_offsetZ}");
+            Console.WriteLine($"[LM] offsets: X = {_offsetX}, Y = {_offsetY}, Z = {_offsetZ}");
 
             //CoordSystem = _settings.LmCoords;
         }
