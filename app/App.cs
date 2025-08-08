@@ -22,11 +22,13 @@ class App
         var nbtClient = new NetClient();
         var cttClient = new NetClient();
 
-        var ht = new HandTracker();
-        var gt = new GazeTracker();
+        var handTracker = new HandTracker();
+        var gazeTracker = new GazeTracker();
 
         int i = 0;
         bool hasFinished = false;
+        int handTotalSampleCount = 0;
+        int handValidSampleCount = 0;
 
         Console.CancelKeyPress += (sender, eventArgs) => {
             eventArgs.Cancel = true;
@@ -47,17 +49,24 @@ class App
             }
         };
 
-        ht.Data += (s, e) =>
+        handTracker.Data += (s, e) =>
         {
-            var handLoc = ht.CompensateHeadRotation(gt.HeadRotation, e);
+            var handLoc = handTracker.CompensateHeadRotation(gazeTracker.HeadRotation, e);
 
             lock (_handLocation)
             {
                 handLoc.CopyTo(_handLocation);
             }
+
+            if (!e.Palm.IsZero)
+            {
+                handValidSampleCount++;
+            }
+
+            handTotalSampleCount++;
         };
 
-        gt.Data += (s, e) =>
+        gazeTracker.Data += (s, e) =>
         {
             string eventInfo;
             lock (_nbackTaskMessage)
@@ -94,45 +103,24 @@ class App
 
         var nbackConnTask = nbtClient.Connect(settings.NBackTaskIP, NetClient.NBackTaskPort);
         nbackConnTask.Wait();
-
-        Exception? ex = nbackConnTask.Result;
-        if (ex != null)
-        {
-            Console.WriteLine($"Cannot connect to the N-Back task on {nbtClient.IP}:{nbtClient.Port}. Is it running?\n  [{ex.Message}]");
-        }
-        else if (!nbtClient.IsConnected)
-        {
-            Console.WriteLine($"Cannot connect to the N-Back task on {nbtClient.IP}:{nbtClient.Port}. Is it running?");
-        }
-        else
-        {
-            Console.WriteLine($"Connected to the N-Back task on {nbtClient.IP}:{nbtClient.Port}.");
-        }
+        HandleConnectionResult("N-Back task", nbtClient, nbackConnTask.Result);
 
         var cttConnTask = cttClient.Connect(settings.CttIP, NetClient.CttPort);
         cttConnTask.Wait();
+        HandleConnectionResult("CTT", cttClient, cttConnTask.Result);
 
-        ex = cttConnTask.Result;
-        if (ex != null)
-        {
-            Console.WriteLine($"Cannot connect to the CTT on {cttClient.IP}:{cttClient.Port}. Is it running?\n  [{ex.Message}]");
-        }
-        else if (!cttClient.IsConnected)
-        {
-            Console.WriteLine($"Cannot connect to the CTT on {cttClient.IP}:{cttClient.Port}. Is it running?");
-        }
-        else
-        {
-            Console.WriteLine($"Connected to the CTT on {cttClient.IP}:{cttClient.Port}.");
-        }
-
-        if ((ht.IsReady && gt.IsReady) || settings.IsDebugMode)
+        if ((handTracker.IsReady && gazeTracker.IsReady) || settings.IsDebugMode)
         {
             Console.WriteLine("Press ENTER to start logging");
             Console.ReadLine();
 
-            ht.Run();
-            gt.Run();
+            WinUtils.MinimizeToTray();
+
+            handTotalSampleCount = 0;
+            handValidSampleCount = 0;
+
+            handTracker.Run();
+            gazeTracker.Run();
 
             Task.Run(async () =>
             {
@@ -166,10 +154,15 @@ class App
                 cttClient.Send("stop");
             }
 
-            ht.Dispose();
-            gt.Dispose();
+            handTracker.Dispose();
+            gazeTracker.Dispose();
+
+            var handTrackingPercentage = (double)handValidSampleCount / (handTotalSampleCount > 0 ? handTotalSampleCount : 1) * 100;
+            Console.WriteLine($"Hand tracking percentage: {handTrackingPercentage:F1} %");
 
             _logger.Save();
+
+            WinUtils.RestoreFromTray();
         }
         else
         {
@@ -185,4 +178,20 @@ class App
     readonly static Logger _logger = Logger.Instance;
 
     static string _nbackTaskMessage = "";
+
+    private static void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
+    {
+        if (ex != null)
+        {
+            Console.WriteLine($"Cannot connect to {serviceName} on {client.IP}:{client.Port}. Is it running?\n  [{ex.Message}]");
+        }
+        else if (!client.IsConnected)
+        {
+            Console.WriteLine($"Cannot connect to {serviceName} on {client.IP}:{client.Port}. Is it running?");
+        }
+        else
+        {
+            Console.WriteLine($"Connected to {serviceName} on {client.IP}:{client.Port}.");
+        }
+    }
 }

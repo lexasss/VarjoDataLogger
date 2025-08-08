@@ -5,7 +5,7 @@ namespace VarjoDataLogger;
 public class HandTracker : IDisposable
 {
     /// <summary>
-    /// Reports hand location as 3 vectors: palm, infdex finger tip and middle finger tip.
+    /// Reports hand location as 3 vectors: palm, index finger tip and middle finger tip.
     /// The coordinate system is as it used to be in the original Leap Motion:
     /// X = left, Y = forward, Z = down
     /// </summary>
