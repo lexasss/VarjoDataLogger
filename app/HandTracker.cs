@@ -67,9 +67,9 @@ public class HandTracker : IDisposable
         }
     }
 
-    public void Run()
+    public void Start()
     {
-        if (_lm == null || _isConnected)
+        if (_lm == null)
             return;
 
         if (_lm.Devices.Count == 0)
@@ -87,6 +87,11 @@ public class HandTracker : IDisposable
         }
 
         _isRunning = true;
+    }
+
+    public void Stop()
+    {
+        _isRunning = false;
     }
 
     public void Dispose()

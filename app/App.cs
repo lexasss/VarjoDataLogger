@@ -19,23 +19,23 @@ class App
             return;
         }
 
-        var nbtClient = new NetClient();
-        var cttClient = new NetClient();
+        using var recorder = new Recorder(settings);
+        recorder.Run();
+    }
+}
 
-        var handTracker = new HandTracker();
-        var gazeTracker = new GazeTracker();
-
-        int i = 0;
-        bool hasFinished = false;
-        int handTotalSampleCount = 0;
-        int handValidSampleCount = 0;
+class Recorder : IDisposable
+{
+    public Recorder(Settings settings)
+    {
+        _settings = settings;
 
         Console.CancelKeyPress += (sender, eventArgs) => {
             eventArgs.Cancel = true;
-            hasFinished = true;
+            _hasInterrupted = true;
         };
 
-        nbtClient.Message += (s, e) =>
+        _nbtClient.Message += (s, e) =>
         {
             lock (_nbackTaskMessage)
             {
@@ -45,147 +45,170 @@ class App
             Console.WriteLine($"[NBT] Received: {e}");
             if (e.StartsWith("FIN"))
             {
-                hasFinished = true;
+                _hasFinished = true;
             }
         };
 
-        handTracker.Data += (s, e) =>
-        {
-            var handLoc = handTracker.CompensateHeadRotation(gazeTracker.HeadRotation, e);
-
-            lock (_handLocation)
-            {
-                handLoc.CopyTo(_handLocation);
-            }
-
-            if (!e.Palm.IsZero)
-            {
-                handValidSampleCount++;
-            }
-
-            handTotalSampleCount++;
-        };
-
-        gazeTracker.Data += (s, e) =>
-        {
-            string eventInfo;
-            lock (_nbackTaskMessage)
-            {
-                eventInfo = _nbackTaskMessage;
-                _nbackTaskMessage = "";
-            }
-
-            lock (_handLocation)
-            {
-                _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch,
-                    e.Pupil.OpennessLeft, e.Pupil.SizeLeft, e.Pupil.OpennessRight, e.Pupil.SizeRight,
-                    _handLocation.Palm.X, _handLocation.Palm.Y, _handLocation.Palm.Z,
-                    _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
-                    _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
-                    _handLocation.Middle.X, _handLocation.Middle.Y, _handLocation.Middle.Z,
-                    eventInfo);
-
-                if ((i++ % 30) == 0)
-                {
-                    Console.Write($"{e.Timestamp}\tGaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}");
-                    Console.Write($"   Pupil: {e.Pupil.OpennessLeft,-6:F1} {e.Pupil.SizeLeft,-6:F1} {e.Pupil.OpennessRight,-6:F1} {e.Pupil.SizeRight,-6:F1}");
-                    Console.Write($"   Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}");
-                    Console.Write($"   Palm: {_handLocation.Palm.X,-6:F1} {_handLocation.Palm.Y,-6:F1} {_handLocation.Palm.Z,-6:F1}");
-                    Console.Write($"   Thumb: {_handLocation.Thumb.X,-6:F1} {_handLocation.Thumb.Y,-6:F1} {_handLocation.Thumb.Z,-6:F1}");
-                    Console.Write($"   Index: {_handLocation.Index.X,-6:F1} {_handLocation.Index.Y,-6:F1} {_handLocation.Index.Z,-6:F1}");
-                    Console.Write($"   Middle: {_handLocation.Middle.X,-6:F1} {_handLocation.Middle.Y,-6:F1} {_handLocation.Middle.Z,-6:F1}");
-                    Console.WriteLine();
-                }
-            }
-        };
-
-        Console.WriteLine();
-
-        var nbackConnTask = nbtClient.Connect(settings.NBackTaskIP, NetClient.NBackTaskPort);
+        var nbackConnTask = _nbtClient.Connect(_settings.NBackTaskIP, NetClient.NBackTaskPort);
         nbackConnTask.Wait();
-        HandleConnectionResult("N-Back task", nbtClient, nbackConnTask.Result);
+        HandleConnectionResult("N-Back task", _nbtClient, nbackConnTask.Result);
 
-        var cttConnTask = cttClient.Connect(settings.CttIP, NetClient.CttPort);
+        var cttConnTask = _cttClient.Connect(_settings.CttIP, NetClient.CttPort);
         cttConnTask.Wait();
-        HandleConnectionResult("CTT", cttClient, cttConnTask.Result);
+        HandleConnectionResult("CTT", _cttClient, cttConnTask.Result);
 
-        if ((handTracker.IsReady && gazeTracker.IsReady) || settings.IsDebugMode)
-        {
-            Console.WriteLine("Press ENTER to start logging");
-            Console.ReadLine();
-
-            if (settings.IsHiddenWhileTracking)
-            {
-                WinUtils.HideConsoleWindow();
-            }
-
-            handTotalSampleCount = 0;
-            handValidSampleCount = 0;
-
-            handTracker.Run();
-            gazeTracker.Run();
-
-            Task.Run(async () =>
-            {
-                await Task.Delay(1000);
-                if (nbtClient.IsConnected)
-                {
-                    nbtClient.Send("start");
-                }
-                if (cttClient.IsConnected)
-                {
-                    cttClient.Send("start");
-                }
-            });
-
-            Console.WriteLine("Press any key to interrupt");
-            while (!hasFinished)
-            {
-                Thread.Sleep(100);
-                if (Console.KeyAvailable)
-                    break;
-            }
-
-            Console.WriteLine("Exiting....");
-
-            if (nbtClient.IsConnected)
-            {
-                nbtClient.Send("stop");
-            }
-            if (cttClient.IsConnected)
-            {
-                cttClient.Send("stop");
-            }
-
-            handTracker.Dispose();
-            gazeTracker.Dispose();
-
-            var handTrackingPercentage = (double)handValidSampleCount / (handTotalSampleCount > 0 ? handTotalSampleCount : 1) * 100;
-            Console.WriteLine($"Hand tracking percentage: {handTrackingPercentage:F1} %");
-
-            _logger.Save();
-
-            if (settings.IsHiddenWhileTracking)
-            {
-                WinUtils.ShowConsoleWindow();
-            }
-        }
-        else
-        {
-            Console.WriteLine("Not all devices are ready. Exiting...");
-        }
-
-        nbtClient.Dispose();
-        cttClient.Dispose();
+        _handTracker.Data += HandTracker_Data;
     }
 
-    readonly static HandLocation _handLocation = new();
+    public void Run()
+    {
+        _hasInterrupted = false;
 
-    readonly static Logger _logger = Logger.Instance;
+        var tasks = TaskSetup.Load(_settings.SetupFilename, _settings.TaskIndex).GetAllTasks();
+        TaskSetup.SaveTo(_settings.LogFolder, tasks);
 
-    static string _nbackTaskMessage = "";
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            _gazeTracker = new GazeTracker();
+            _gazeTracker.Data += GazeTracker_Data;
 
-    private static void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
+            var task = tasks[i];
+
+            if (task.IsValid)
+            {
+                _nbtClient.Send($"{NET_COMMAND_SET_NBT_TASK}{task.NBackTaskIndex}");
+                _cttClient.Send($"{NET_COMMAND_SET_CTT_LAMBDA}{task.CttLambdaIndex}");
+                Console.WriteLine($"Task {i + 1}/{tasks.Length}: CTT = {task.CttLambdaIndex}, NBack = {task.NBackTaskIndex}");
+            }
+
+            _gazeSampleIndex = 0;
+            _handTotalSampleCount = 0;
+            _handValidSampleCount = 0;
+
+            _hasFinished = false;
+
+            if ((_handTracker.IsReady && _gazeTracker.IsReady) || _settings.IsDebugMode)
+            {
+                Console.WriteLine();
+                Console.WriteLine();
+                Console.WriteLine($"Press ENTER to start");
+                Console.ReadLine();
+
+                if (_settings.IsHiddenWhileTracking)
+                {
+                    WinUtils.HideConsoleWindow();
+                }
+
+                _handTotalSampleCount = 0;
+                _handValidSampleCount = 0;
+
+                _handTracker.Start();
+                _gazeTracker.Run();
+
+                Task.Run(async () =>
+                {
+                    await Task.Delay(1000);
+                    if (_nbtClient.IsConnected)
+                    {
+                        _nbtClient.Send(NET_COMMAND_START);
+                    }
+                    if (_cttClient.IsConnected)
+                    {
+                        _cttClient.Send(NET_COMMAND_START);
+                    }
+                });
+
+                Console.WriteLine("Press any key to interrupt");
+                while (!_hasFinished && !_hasInterrupted)
+                {
+                    Thread.Sleep(100);
+                    if (Console.KeyAvailable)
+                        break;
+                }
+
+                Console.WriteLine();
+
+                if (_nbtClient.IsConnected)
+                {
+                    _nbtClient.Send(NET_COMMAND_STOP);
+                }
+                if (_cttClient.IsConnected)
+                {
+                    _cttClient.Send(NET_COMMAND_STOP);
+                }
+
+                _handTracker.Stop();
+
+                if (_settings.IsHiddenWhileTracking)
+                {
+                    WinUtils.ShowConsoleWindow();
+                }
+
+                if (!_hasInterrupted)
+                {
+
+                    var handTrackingPercentage = (double)_handValidSampleCount / (_handTotalSampleCount > 0 ? _handTotalSampleCount : 1) * 100;
+                    Console.WriteLine($"Hand tracking percentage: {handTrackingPercentage:F1} %");
+
+                    _logger.Save();
+
+                    Thread.Sleep(1000); // Give some time for the trackers to finalize
+                }
+            }
+            else
+            {
+                Console.WriteLine("Not all devices are ready.");
+                _hasInterrupted = true;
+            }
+
+            _gazeTracker.Data -= GazeTracker_Data;
+            _gazeTracker.Dispose();
+            _gazeTracker = null;
+
+            if (_hasInterrupted)
+                break;
+        }
+
+        Console.WriteLine("Exiting....");
+    }
+
+    public void Dispose()
+    {
+        _handTracker.Dispose();
+        
+        _nbtClient.Dispose();
+        _cttClient.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+
+    // Internal
+
+    readonly string NET_COMMAND_SET_NBT_TASK = "set";
+    readonly string NET_COMMAND_SET_CTT_LAMBDA = "lambda";
+    readonly string NET_COMMAND_START = "start";
+    readonly string NET_COMMAND_STOP = "stop";
+
+    readonly HandLocation _handLocation = new();
+    readonly Logger _logger = Logger.Instance;
+    readonly NetClient _nbtClient = new();
+    readonly NetClient _cttClient = new();
+    readonly HandTracker _handTracker = new();
+    readonly Settings _settings;
+
+    string _nbackTaskMessage = "";
+
+    GazeTracker? _gazeTracker = null;
+
+    bool _hasFinished = false;
+    bool _hasInterrupted = false;
+
+    int _gazeSampleIndex = 0;
+    int _handTotalSampleCount = 0;
+    int _handValidSampleCount = 0;
+
+
+    private void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
     {
         if (ex != null)
         {
@@ -199,5 +222,58 @@ class App
         {
             Console.WriteLine($"Connected to {serviceName} on {client.IP}:{client.Port}.");
         }
+    }
+
+    private void GazeTracker_Data(object? sender, EyeHead e)
+    {
+        string eventInfo;
+        lock (_nbackTaskMessage)
+        {
+            eventInfo = _nbackTaskMessage;
+            _nbackTaskMessage = "";
+        }
+
+        lock (_handLocation)
+        {
+            _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch,
+                e.Pupil.OpennessLeft, e.Pupil.SizeLeft, e.Pupil.OpennessRight, e.Pupil.SizeRight,
+                _handLocation.Palm.X, _handLocation.Palm.Y, _handLocation.Palm.Z,
+                _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
+                _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
+                _handLocation.Middle.X, _handLocation.Middle.Y, _handLocation.Middle.Z,
+                eventInfo);
+
+            if ((_gazeSampleIndex++ % 30) == 0)
+            {
+                Console.Write($"{e.Timestamp}\tGaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}");
+                Console.Write($"   Pupil: {e.Pupil.OpennessLeft,-6:F1} {e.Pupil.SizeLeft,-6:F1} {e.Pupil.OpennessRight,-6:F1} {e.Pupil.SizeRight,-6:F1}");
+                Console.Write($"   Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}");
+                Console.Write($"   Palm: {_handLocation.Palm.X,-6:F1} {_handLocation.Palm.Y,-6:F1} {_handLocation.Palm.Z,-6:F1}");
+                Console.Write($"   Thumb: {_handLocation.Thumb.X,-6:F1} {_handLocation.Thumb.Y,-6:F1} {_handLocation.Thumb.Z,-6:F1}");
+                Console.Write($"   Index: {_handLocation.Index.X,-6:F1} {_handLocation.Index.Y,-6:F1} {_handLocation.Index.Z,-6:F1}");
+                Console.Write($"   Middle: {_handLocation.Middle.X,-6:F1} {_handLocation.Middle.Y,-6:F1} {_handLocation.Middle.Z,-6:F1}");
+                Console.WriteLine();
+            }
+        }
+    }
+
+    private void HandTracker_Data(object? sender, HandLocation e)
+    {
+        if (_gazeTracker == null)
+            return;
+
+        var handLoc = _handTracker.CompensateHeadRotation(_gazeTracker.HeadRotation, e);
+
+        lock (_handLocation)
+        {
+            handLoc.CopyTo(_handLocation);
+        }
+
+        if (!e.Palm.IsZero)
+        {
+            _handValidSampleCount++;
+        }
+
+        _handTotalSampleCount++;
     }
 }

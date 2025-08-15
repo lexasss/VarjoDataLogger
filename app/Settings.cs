@@ -16,6 +16,12 @@ public class Settings
     [Option('o', "offset", Required = false, HelpText = "Leap Motion ZYX offsets (comma-separated, no spaces). Default is '-6,15,0'.")]
     public string LmOffsetStr { get; set; } = "-6,15,0";
 
+    [Option('s', "setup", Required = false, HelpText = "Path to a file with the experiment setup. Default is 'no value'.")]
+    public string? SetupFilename { get; set; }
+
+    [Option('t', "task", Required = false, HelpText = "Index of the task set loaded from the setup file. Ignored if no setup is loaded. Default is '0'.")]
+    public int TaskIndex { get; set; }
+
     [Option('h', "hide", Required = false, HelpText = "Forces the console window to be hidden (minimized) while the tracking is on.")]
     public bool IsHiddenWhileTracking { get; set; } = false;
 
