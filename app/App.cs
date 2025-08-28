@@ -70,7 +70,6 @@ class Recorder : IDisposable
         for (int i = 0; i < tasks.Length; i++)
         {
             _gazeTracker = new GazeTracker();
-            _gazeTracker.Data += GazeTracker_Data;
 
             var task = tasks[i];
 
@@ -93,6 +92,8 @@ class Recorder : IDisposable
                 Console.WriteLine();
                 Console.WriteLine($"Press ENTER to start");
                 Console.ReadLine();
+
+                _gazeTracker.Data += GazeTracker_Data;
 
                 if (_settings.IsHiddenWhileTracking)
                 {
@@ -139,6 +140,8 @@ class Recorder : IDisposable
 
                 _handTracker.Stop();
 
+                _gazeTracker.Data -= GazeTracker_Data;
+
                 if (_settings.IsHiddenWhileTracking)
                 {
                     WinUtils.ShowConsoleWindow();
@@ -161,7 +164,6 @@ class Recorder : IDisposable
                 _hasInterrupted = true;
             }
 
-            _gazeTracker.Data -= GazeTracker_Data;
             _gazeTracker.Dispose();
             _gazeTracker = null;
 
