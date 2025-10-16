@@ -30,11 +30,6 @@ class Recorder : IDisposable
     {
         _settings = settings;
 
-        Console.CancelKeyPress += (sender, eventArgs) => {
-            eventArgs.Cancel = true;
-            _hasInterrupted = true;
-        };
-
         _nbtClient.Message += (s, e) =>
         {
             lock (_nbackTaskMessage)
@@ -91,7 +86,10 @@ class Recorder : IDisposable
                 Console.WriteLine();
                 Console.WriteLine();
                 Console.WriteLine($"Press ENTER to start");
-                Console.ReadLine();
+                var cmd = Console.ReadLine();
+
+                if (cmd == null || _hasInterrupted)
+                    break;
 
                 _gazeTracker.Data += GazeTracker_Data;
 
@@ -120,13 +118,22 @@ class Recorder : IDisposable
                 });
 
                 Console.WriteLine("Press any key to interrupt");
+                Console.TreatControlCAsInput = true;
                 while (!_hasFinished && !_hasInterrupted)
                 {
                     Thread.Sleep(100);
                     if (Console.KeyAvailable)
+                    {
+                        var key = Console.ReadKey(true);
+                        if (key.Key == ConsoleKey.C && key.Modifiers.HasFlag(ConsoleModifiers.Control))
+                        {
+                            _hasInterrupted = true;
+                        }
                         break;
+                    }
                 }
 
+                Console.TreatControlCAsInput = false;
                 Console.WriteLine();
 
                 if (_nbtClient.IsConnected)
