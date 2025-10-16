@@ -7,6 +7,7 @@ public class NetClient : IDisposable
 {
     public static int NBackTaskPort => 8963;
     public static int CttPort => 8964;
+    public static int LeapMotionStreamerPort => 8981;
 
     public string IP { get; private set; } = "127.0.0.1";
     public int Port { get; private set; }

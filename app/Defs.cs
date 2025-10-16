@@ -1,4 +1,6 @@
-﻿namespace VarjoDataLogger;
+﻿using System.Text.Json;
+
+namespace VarjoDataLogger;
 
 public class Vector(double x, double y, double z)
 {
@@ -34,12 +36,31 @@ public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle
     public Vector Thumb { get; set; } = thumb;
     public Vector Index { get; set; } = index;
     public Vector Middle { get; set; } = middle;
+    public bool IsEmpty => Palm.IsZero && Thumb.IsZero && Index.IsZero && Middle.IsZero;
     public HandLocation() : this(Vector.Zero, Vector.Zero, Vector.Zero, Vector.Zero) { }
+    public string AsJson() => JsonSerializer.Serialize(this);
     public void CopyTo(HandLocation rhs)
     {
         rhs.Palm = Palm;
         rhs.Thumb = Thumb;
         rhs.Index = Index;
         rhs.Middle = Middle;
+    }
+
+    public static HandLocation Empty => new();
+    public static HandLocation FromJson(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return Empty;
+
+        HandLocation result = Empty;
+
+        try
+        {
+            result = JsonSerializer.Deserialize<HandLocation>(json) ?? Empty;
+        }
+        catch { }
+
+        return result;
     }
 }

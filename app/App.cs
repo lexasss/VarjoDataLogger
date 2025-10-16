@@ -30,20 +30,7 @@ class Recorder : IDisposable
     {
         _settings = settings;
 
-        _nbtClient.Message += (s, e) =>
-        {
-            lock (_nbackTaskMessage)
-            {
-                _nbackTaskMessage = e;
-            }
-
-            Console.WriteLine($"[NBT] Received: {e}");
-            if (e.StartsWith("FIN"))
-            {
-                _hasFinished = true;
-            }
-        };
-
+        _nbtClient.Message += NbtClient_Message;
         var nbackConnTask = _nbtClient.Connect(_settings.NBackTaskIP, NetClient.NBackTaskPort);
         nbackConnTask.Wait();
         HandleConnectionResult("N-Back task", _nbtClient, nbackConnTask.Result);
@@ -51,6 +38,11 @@ class Recorder : IDisposable
         var cttConnTask = _cttClient.Connect(_settings.CttIP, NetClient.CttPort);
         cttConnTask.Wait();
         HandleConnectionResult("CTT", _cttClient, cttConnTask.Result);
+
+        _lmsClient.Message += LmsClient_Message;
+        var lmsConnTask = _lmsClient.Connect(_settings.LeapMotionStreamerIP, NetClient.LeapMotionStreamerPort);
+        lmsConnTask.Wait();
+        HandleConnectionResult("Leap Motion Streamer", _lmsClient, lmsConnTask.Result);
 
         _handTracker.Data += HandTracker_Data;
     }
@@ -76,8 +68,10 @@ class Recorder : IDisposable
             }
 
             _gazeSampleIndex = 0;
-            _handTotalSampleCount = 0;
-            _handValidSampleCount = 0;
+            _handLocalTotalSampleCount = 0;
+            _handLocalValidSampleCount = 0;
+            _handRemoteTotalSampleCount = 0;
+            _handRemoteValidSampleCount = 0;
 
             _hasFinished = false;
 
@@ -98,8 +92,10 @@ class Recorder : IDisposable
                     WinUtils.HideConsoleWindow();
                 }
 
-                _handTotalSampleCount = 0;
-                _handValidSampleCount = 0;
+                _handLocalTotalSampleCount = 0;
+                _handLocalValidSampleCount = 0;
+                _handRemoteTotalSampleCount = 0;
+                _handRemoteValidSampleCount = 0;
 
                 _handTracker.Start();
                 _gazeTracker.Run();
@@ -114,6 +110,10 @@ class Recorder : IDisposable
                     if (_cttClient.IsConnected)
                     {
                         _cttClient.Send(NET_COMMAND_START);
+                    }
+                    if (_lmsClient.IsConnected)
+                    {
+                        _lmsClient.Send(NET_COMMAND_START);
                     }
                 });
 
@@ -144,6 +144,10 @@ class Recorder : IDisposable
                 {
                     _cttClient.Send(NET_COMMAND_STOP);
                 }
+                if (_lmsClient.IsConnected)
+                {
+                    _lmsClient.Send(NET_COMMAND_STOP);
+                }
 
                 _handTracker.Stop();
 
@@ -157,8 +161,9 @@ class Recorder : IDisposable
                 if (!_hasInterrupted)
                 {
 
-                    var handTrackingPercentage = (double)_handValidSampleCount / (_handTotalSampleCount > 0 ? _handTotalSampleCount : 1) * 100;
-                    Console.WriteLine($"Hand tracking percentage: {handTrackingPercentage:F1} %");
+                    var handLocalTrackingPercentage = (double)_handLocalValidSampleCount / (_handLocalTotalSampleCount > 0 ? _handLocalTotalSampleCount : 1) * 100;
+                    var handRemoteTrackingPercentage = (double)_handRemoteValidSampleCount / (_handRemoteTotalSampleCount > 0 ? _handRemoteTotalSampleCount : 1) * 100;
+                    Console.WriteLine($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (local) / {handRemoteTrackingPercentage:F1} % (remote)");
 
                     _logger.Save();
 
@@ -187,6 +192,7 @@ class Recorder : IDisposable
         
         _nbtClient.Dispose();
         _cttClient.Dispose();
+        _lmsClient.Dispose();
 
         GC.SuppressFinalize(this);
     }
@@ -202,10 +208,12 @@ class Recorder : IDisposable
     readonly Logger _logger = Logger.Instance;
     readonly NetClient _nbtClient = new();
     readonly NetClient _cttClient = new();
+    readonly NetClient _lmsClient = new();
     readonly HandTracker _handTracker = new();
     readonly Settings _settings;
 
     string _nbackTaskMessage = "";
+    string _lmsData = "";
 
     GazeTracker? _gazeTracker = null;
 
@@ -213,8 +221,10 @@ class Recorder : IDisposable
     bool _hasInterrupted = false;
 
     int _gazeSampleIndex = 0;
-    int _handTotalSampleCount = 0;
-    int _handValidSampleCount = 0;
+    int _handLocalTotalSampleCount = 0;
+    int _handLocalValidSampleCount = 0;
+    int _handRemoteTotalSampleCount = 0;
+    int _handRemoteValidSampleCount = 0;
 
 
     private void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
@@ -233,6 +243,28 @@ class Recorder : IDisposable
         }
     }
 
+    private void NbtClient_Message(object? sender, string e)
+    {
+        lock (_nbackTaskMessage)
+        {
+            _nbackTaskMessage = e;
+        }
+
+        Console.WriteLine($"[NBT] Received: {e}");
+        if (e.StartsWith("FIN"))
+        {
+            _hasFinished = true;
+        }
+    }
+
+    private void LmsClient_Message(object? sender, string e)
+    {
+        lock (_lmsData)
+        {
+            _lmsData = e;
+        }
+    }
+
     private void GazeTracker_Data(object? sender, EyeHead e)
     {
         string eventInfo;
@@ -240,6 +272,19 @@ class Recorder : IDisposable
         {
             eventInfo = _nbackTaskMessage;
             _nbackTaskMessage = "";
+        }
+
+
+        HandLocation handLocationRemote;
+        lock (_lmsData)
+        {
+            _handRemoteTotalSampleCount++;
+
+            handLocationRemote = HandLocation.FromJson(_lmsData);
+            if (!handLocationRemote.IsEmpty)
+            {
+                _handRemoteValidSampleCount++;
+            }
         }
 
         lock (_handLocation)
@@ -250,18 +295,28 @@ class Recorder : IDisposable
                 _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
                 _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
                 _handLocation.Middle.X, _handLocation.Middle.Y, _handLocation.Middle.Z,
+                handLocationRemote.Palm.X, handLocationRemote.Palm.Y, handLocationRemote.Palm.Z,
+                handLocationRemote.Thumb.X, handLocationRemote.Thumb.Y, handLocationRemote.Thumb.Z,
+                handLocationRemote.Index.X, handLocationRemote.Index.Y, handLocationRemote.Index.Z,
+                handLocationRemote.Middle.X, handLocationRemote.Middle.Y, handLocationRemote.Middle.Z,
                 eventInfo);
 
-            if ((_gazeSampleIndex++ % 30) == 0)
+            if ((_gazeSampleIndex++ % 60) == 0)
             {
-                Console.Write($"{e.Timestamp}\tGaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}");
-                Console.Write($"   Pupil: {e.Pupil.OpennessLeft,-6:F1} {e.Pupil.SizeLeft,-6:F1} {e.Pupil.OpennessRight,-6:F1} {e.Pupil.SizeRight,-6:F1}");
-                Console.Write($"   Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}");
-                Console.Write($"   Palm: {_handLocation.Palm.X,-6:F1} {_handLocation.Palm.Y,-6:F1} {_handLocation.Palm.Z,-6:F1}");
-                Console.Write($"   Thumb: {_handLocation.Thumb.X,-6:F1} {_handLocation.Thumb.Y,-6:F1} {_handLocation.Thumb.Z,-6:F1}");
-                Console.Write($"   Index: {_handLocation.Index.X,-6:F1} {_handLocation.Index.Y,-6:F1} {_handLocation.Index.Z,-6:F1}");
-                Console.Write($"   Middle: {_handLocation.Middle.X,-6:F1} {_handLocation.Middle.Y,-6:F1} {_handLocation.Middle.Z,-6:F1}");
-                Console.WriteLine();
+                Console.WriteLine($"{e.Timestamp}");
+                Console.WriteLine($"   Gaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}");
+                Console.WriteLine($"   Pupil: {e.Pupil.OpennessLeft,-6:F1} {e.Pupil.SizeLeft,-6:F1} {e.Pupil.OpennessRight,-6:F1} {e.Pupil.SizeRight,-6:F1}");
+                Console.WriteLine($"   Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}");
+                Console.WriteLine($"   Hand (Headset)");
+                Console.WriteLine($"      Palm: {_handLocation.Palm.X,-6:F1} {_handLocation.Palm.Y,-6:F1} {_handLocation.Palm.Z,-6:F1}");
+                Console.WriteLine($"      Thumb: {_handLocation.Thumb.X,-6:F1} {_handLocation.Thumb.Y,-6:F1} {_handLocation.Thumb.Z,-6:F1}");
+                Console.WriteLine($"      Index: {_handLocation.Index.X,-6:F1} {_handLocation.Index.Y,-6:F1} {_handLocation.Index.Z,-6:F1}");
+                Console.WriteLine($"      Middle: {_handLocation.Middle.X,-6:F1} {_handLocation.Middle.Y,-6:F1} {_handLocation.Middle.Z,-6:F1}");
+                Console.WriteLine($"   Hand (TopView)");
+                Console.WriteLine($"      Palm: {handLocationRemote.Palm.X,-6:F1} {handLocationRemote.Palm.Y,-6:F1} {handLocationRemote.Palm.Z,-6:F1}");
+                Console.WriteLine($"      Thumb: {handLocationRemote.Thumb.X,-6:F1} {handLocationRemote.Thumb.Y,-6:F1} {handLocationRemote.Thumb.Z,-6:F1}");
+                Console.WriteLine($"      Index: {handLocationRemote.Index.X,-6:F1} {handLocationRemote.Index.Y,-6:F1} {handLocationRemote.Index.Z,-6:F1}");
+                Console.WriteLine($"      Middle: {handLocationRemote.Middle.X,-6:F1} {handLocationRemote.Middle.Y,-6:F1} {handLocationRemote.Middle.Z,-6:F1}");
             }
         }
     }
@@ -280,9 +335,9 @@ class Recorder : IDisposable
 
         if (!e.Palm.IsZero)
         {
-            _handValidSampleCount++;
+            _handLocalValidSampleCount++;
         }
 
-        _handTotalSampleCount++;
+        _handLocalTotalSampleCount++;
     }
 }

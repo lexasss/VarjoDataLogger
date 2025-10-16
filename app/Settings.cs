@@ -10,6 +10,9 @@ public class Settings
     [Option('c', "cttip", Required = false, HelpText = "IP address of the PC running CTT application. Default is '127.0.0.1'.")]
     public string CttIP { get; set; } = "127.0.0.1";
 
+    [Option('m', "lmsip", Required = false, HelpText = "IP address of the PC running Leap Motion Streamer application. Default is '127.0.0.1'.")]
+    public string LeapMotionStreamerIP { get; set; } = "127.0.0.1";
+    
     [Option('l', "log", Required = false, HelpText = "Log file folder, must be without spaces. Default is 'C:/Users/<USERNAME>/Documents'.")]
     public string LogFolder { get; set; }
 
