@@ -146,10 +146,10 @@ public class HandTracker : IDisposable
             var x_ = m21 * x + m22 * y + m23 * z;
             var y_ = m31 * x + m32 * y + m33 * z;
 
-            if (_settings.IsVerbose)
+            /*if (_settings.IsVerbose)
             {
                 Console.WriteLine($"{a,-8:F2} {b,-8:F2} {c,-8:F2} | {vec.X,-8:F2} {vec.Y,-8:F2} {vec.Z,-8:F2} > {x_,-8:F2} {y_,-8:F2} {z_,-8:F2}");
-            }
+            }*/
 
             return new Vector(x_, y_, z_);
         }

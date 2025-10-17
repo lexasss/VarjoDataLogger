@@ -94,7 +94,7 @@ public class NetClient : IDisposable
         {
             do
             {
-                byte[] buffer = new byte[2048];
+                byte[] buffer = new byte[1024];
                 var byteCount = _stream.Read(buffer);
 
                 if (byteCount == 0)

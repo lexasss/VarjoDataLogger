@@ -70,8 +70,8 @@ class Recorder : IDisposable
             _gazeSampleIndex = 0;
             _handLocalTotalSampleCount = 0;
             _handLocalValidSampleCount = 0;
-            _handRemoteTotalSampleCount = 0;
-            _handRemoteValidSampleCount = 0;
+            _topViewHandTotalSampleCount = 0;
+            _topViewHandValidSampleCount = 0;
 
             _hasFinished = false;
 
@@ -94,8 +94,8 @@ class Recorder : IDisposable
 
                 _handLocalTotalSampleCount = 0;
                 _handLocalValidSampleCount = 0;
-                _handRemoteTotalSampleCount = 0;
-                _handRemoteValidSampleCount = 0;
+                _topViewHandTotalSampleCount = 0;
+                _topViewHandValidSampleCount = 0;
 
                 _handTracker.Start();
                 _gazeTracker.Run();
@@ -162,8 +162,8 @@ class Recorder : IDisposable
                 {
 
                     var handLocalTrackingPercentage = (double)_handLocalValidSampleCount / (_handLocalTotalSampleCount > 0 ? _handLocalTotalSampleCount : 1) * 100;
-                    var handRemoteTrackingPercentage = (double)_handRemoteValidSampleCount / (_handRemoteTotalSampleCount > 0 ? _handRemoteTotalSampleCount : 1) * 100;
-                    Console.WriteLine($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (local) / {handRemoteTrackingPercentage:F1} % (remote)");
+                    var topViewHandTrackingPercentage = (double)_topViewHandValidSampleCount / (_topViewHandTotalSampleCount > 0 ? _topViewHandTotalSampleCount : 1) * 100;
+                    Console.WriteLine($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (headset) / {topViewHandTrackingPercentage:F1} % (top-view)");
 
                     _logger.Save();
 
@@ -214,6 +214,7 @@ class Recorder : IDisposable
 
     string _nbackTaskMessage = "";
     string _lmsData = "";
+    HandLocation _topViewHandLocation = HandLocation.Empty;
 
     GazeTracker? _gazeTracker = null;
 
@@ -223,8 +224,8 @@ class Recorder : IDisposable
     int _gazeSampleIndex = 0;
     int _handLocalTotalSampleCount = 0;
     int _handLocalValidSampleCount = 0;
-    int _handRemoteTotalSampleCount = 0;
-    int _handRemoteValidSampleCount = 0;
+    int _topViewHandTotalSampleCount = 0;
+    int _topViewHandValidSampleCount = 0;
 
 
     private void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
@@ -274,17 +275,20 @@ class Recorder : IDisposable
             _nbackTaskMessage = "";
         }
 
-
-        HandLocation handLocationRemote;
         lock (_lmsData)
         {
-            _handRemoteTotalSampleCount++;
+            _topViewHandTotalSampleCount++;
 
-            handLocationRemote = HandLocation.FromJson(_lmsData);
-            if (!handLocationRemote.IsEmpty)
+            var handLocation = HandLocation.FromJson(_lmsData);
+            if (handLocation != null)
             {
-                _handRemoteValidSampleCount++;
+                _topViewHandLocation = handLocation;
             }
+        }
+
+        if (!_topViewHandLocation.IsEmpty)
+        {
+            _topViewHandValidSampleCount++;
         }
 
         lock (_handLocation)
@@ -295,13 +299,13 @@ class Recorder : IDisposable
                 _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
                 _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
                 _handLocation.Middle.X, _handLocation.Middle.Y, _handLocation.Middle.Z,
-                handLocationRemote.Palm.X, handLocationRemote.Palm.Y, handLocationRemote.Palm.Z,
-                handLocationRemote.Thumb.X, handLocationRemote.Thumb.Y, handLocationRemote.Thumb.Z,
-                handLocationRemote.Index.X, handLocationRemote.Index.Y, handLocationRemote.Index.Z,
-                handLocationRemote.Middle.X, handLocationRemote.Middle.Y, handLocationRemote.Middle.Z,
+                _topViewHandLocation.Palm.X, _topViewHandLocation.Palm.Y, _topViewHandLocation.Palm.Z,
+                _topViewHandLocation.Thumb.X, _topViewHandLocation.Thumb.Y, _topViewHandLocation.Thumb.Z,
+                _topViewHandLocation.Index.X, _topViewHandLocation.Index.Y, _topViewHandLocation.Index.Z,
+                _topViewHandLocation.Middle.X, _topViewHandLocation.Middle.Y, _topViewHandLocation.Middle.Z,
                 eventInfo);
 
-            if ((_gazeSampleIndex++ % 60) == 0)
+            if (_settings.IsVerbose && (_gazeSampleIndex++ % 60) == 0)
             {
                 Console.WriteLine($"{e.Timestamp}");
                 Console.WriteLine($"   Gaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}");
@@ -313,10 +317,10 @@ class Recorder : IDisposable
                 Console.WriteLine($"      Index: {_handLocation.Index.X,-6:F1} {_handLocation.Index.Y,-6:F1} {_handLocation.Index.Z,-6:F1}");
                 Console.WriteLine($"      Middle: {_handLocation.Middle.X,-6:F1} {_handLocation.Middle.Y,-6:F1} {_handLocation.Middle.Z,-6:F1}");
                 Console.WriteLine($"   Hand (TopView)");
-                Console.WriteLine($"      Palm: {handLocationRemote.Palm.X,-6:F1} {handLocationRemote.Palm.Y,-6:F1} {handLocationRemote.Palm.Z,-6:F1}");
-                Console.WriteLine($"      Thumb: {handLocationRemote.Thumb.X,-6:F1} {handLocationRemote.Thumb.Y,-6:F1} {handLocationRemote.Thumb.Z,-6:F1}");
-                Console.WriteLine($"      Index: {handLocationRemote.Index.X,-6:F1} {handLocationRemote.Index.Y,-6:F1} {handLocationRemote.Index.Z,-6:F1}");
-                Console.WriteLine($"      Middle: {handLocationRemote.Middle.X,-6:F1} {handLocationRemote.Middle.Y,-6:F1} {handLocationRemote.Middle.Z,-6:F1}");
+                Console.WriteLine($"      Palm: {_topViewHandLocation.Palm.X,-6:F1} {_topViewHandLocation.Palm.Y,-6:F1} {_topViewHandLocation.Palm.Z,-6:F1}");
+                Console.WriteLine($"      Thumb: {_topViewHandLocation.Thumb.X,-6:F1} {_topViewHandLocation.Thumb.Y,-6:F1} {_topViewHandLocation.Thumb.Z,-6:F1}");
+                Console.WriteLine($"      Index: {_topViewHandLocation.Index.X,-6:F1} {_topViewHandLocation.Index.Y,-6:F1} {_topViewHandLocation.Index.Z,-6:F1}");
+                Console.WriteLine($"      Middle: {_topViewHandLocation.Middle.X,-6:F1} {_topViewHandLocation.Middle.Y,-6:F1} {_topViewHandLocation.Middle.Z,-6:F1}");
             }
         }
     }

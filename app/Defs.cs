@@ -48,7 +48,7 @@ public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle
     }
 
     public static HandLocation Empty => new();
-    public static HandLocation FromJson(string json)
+    public static HandLocation? FromJson(string json)
     {
         if (string.IsNullOrEmpty(json))
             return Empty;
@@ -57,9 +57,12 @@ public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle
 
         try
         {
-            result = JsonSerializer.Deserialize<HandLocation>(json) ?? Empty;
+            result = JsonSerializer.Deserialize<HandLocation>(json) ?? result;
         }
-        catch { }
+        catch
+        {
+            return null;
+        }
 
         return result;
     }
