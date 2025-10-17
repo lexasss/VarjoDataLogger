@@ -1,5 +1,4 @@
 ﻿using System.Net.Sockets;
-using System.Text;
 
 namespace VarjoDataLogger;
 
@@ -56,7 +55,7 @@ public class NetClient : IDisposable
 
     public void Send(string message)
     {
-        var bytes = Encoding.ASCII.GetBytes(message + "\n");
+        var bytes = System.Text.Encoding.ASCII.GetBytes(message + "\n");
         _stream?.WriteAsync(bytes, 0, bytes.Length);
     }
 
@@ -95,7 +94,7 @@ public class NetClient : IDisposable
         {
             do
             {
-                byte[] buffer = new byte[16];
+                byte[] buffer = new byte[2048];
                 var byteCount = _stream.Read(buffer);
 
                 if (byteCount == 0)
