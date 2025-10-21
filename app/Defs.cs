@@ -9,6 +9,7 @@ public class Vector(double x, double y, double z)
     public double Z { get; set; } = z;
     public double Magnitude => Math.Sqrt(X * X + Y * Y + Z * Z);
     public bool IsZero => X == 0 && Y == 0 && Z == 0;
+    public Vector Copy() => new(X, Y, Z);
     public static Vector Zero => new(0, 0, 0);
     public static Vector From(ref readonly Leap.Vector v) => new(v.x, v.y, v.z);
     public static Vector operator / (Vector obj, double div) => new(obj.X / div, obj.Y / div, obj.Z / div);
@@ -41,27 +42,52 @@ public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle
     public string AsJson() => JsonSerializer.Serialize(this);
     public void CopyTo(HandLocation rhs)
     {
-        rhs.Palm = Palm;
-        rhs.Thumb = Thumb;
-        rhs.Index = Index;
-        rhs.Middle = Middle;
+        rhs.Palm = Palm.Copy();
+        rhs.Thumb = Thumb.Copy();
+        rhs.Index = Index.Copy();
+        rhs.Middle = Middle.Copy();
+    }
+    public HandLocation Copy()
+    {
+        HandLocation copy = new();
+        CopyTo(copy);
+        return copy;
     }
 
     public static HandLocation Empty => new();
     public static HandLocation? FromJson(string json)
     {
-        if (string.IsNullOrEmpty(json))
-            return Empty;
+        HandLocation? result = null;
 
-        HandLocation result = Empty;
+        if (!string.IsNullOrEmpty(json))
+        {
+            try
+            {
+                result = JsonSerializer.Deserialize<HandLocation>(json);
+                App.DebugLog.WriteLine($"JSON hand location {result?.Palm.X} {result?.Palm.Y} {result?.Palm.Z}");
+            }
+            catch
+            {
+                App.DebugLog.WriteLine($"ERROR while parsing json {json}");
 
-        try
-        {
-            result = JsonSerializer.Deserialize<HandLocation>(json) ?? result;
-        }
-        catch
-        {
-            return null;
+                var records = json.Split('\n');
+                for (int i = records.Length - 1; i >= 0; i--)
+                {
+                    try
+                    {
+                        result = JsonSerializer.Deserialize<HandLocation>(records[i]);
+                        if (result is not null)
+                        {
+                            App.DebugLog.WriteLine($"  - RESTORED from {i+1}/{records.Length}");
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        App.DebugLog.WriteLine($"  - FAILED at {i+1}: {json}");
+                    }
+                }
+            }
         }
 
         return result;

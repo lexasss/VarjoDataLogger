@@ -78,6 +78,8 @@ public class NetClient : IDisposable
 
     // Internal
 
+    const int BUFFER_SIZE = 1024;
+
     readonly TcpClient _client;
 
     NetworkStream? _stream;
@@ -94,7 +96,8 @@ public class NetClient : IDisposable
         {
             do
             {
-                byte[] buffer = new byte[1024];
+                int bufferSize = BUFFER_SIZE;
+                byte[] buffer = new byte[bufferSize];
                 var byteCount = _stream.Read(buffer);
 
                 if (byteCount == 0)
@@ -102,7 +105,21 @@ public class NetClient : IDisposable
                     break;
                 }
 
-                for (int i = byteCount - 1; i > 0; i--)
+                while (byteCount == bufferSize)
+                {
+                    var bytes = new byte[BUFFER_SIZE];
+                    byteCount += _stream.Read(bytes);
+
+                    bufferSize += BUFFER_SIZE;
+                    var newBuffer = new byte[bufferSize];
+                    buffer.CopyTo(newBuffer, 0);
+                    bytes.CopyTo(newBuffer, bufferSize - BUFFER_SIZE);
+                    buffer = newBuffer;
+
+                    App.DebugLog.WriteLine($"OVERFLOW buffer size increased to {bufferSize}, total data size is {byteCount}");
+                }
+
+                for (int i = byteCount - 1; i >= 0; i--)
                 {
                     if (buffer[i] == 10 || buffer[i] == 13)
                     {

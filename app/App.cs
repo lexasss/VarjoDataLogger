@@ -6,6 +6,16 @@ class App
 {
     public static string Name => "Varjo Data Logger";
 
+    public static StreamWriter DebugLog { get; private set; }
+
+    static App()
+    {
+        if (!Directory.Exists("debug"))
+            Directory.CreateDirectory("debug");
+
+        DebugLog = new(Path.Combine("debug", $"debug-{DateTime.Now:u}.txt".ToPath()));
+    }
+
     public static void Main(string[] args)
     {
         // Set the US-culture across the application to avoid decimal point parsing/logging issues
@@ -21,6 +31,8 @@ class App
 
         using var recorder = new Recorder(settings);
         recorder.Run();
+
+        DebugLog.Dispose();
     }
 }
 
@@ -62,16 +74,26 @@ class Recorder : IDisposable
 
             if (task.IsValid)
             {
+                Console.WriteLine();
+
                 _nbtClient.Send($"{NET_COMMAND_SET_NBT_TASK}{task.NBackTaskIndex}");
                 _cttClient.Send($"{NET_COMMAND_SET_CTT_LAMBDA}{task.CttLambdaIndex}");
-                Console.WriteLine($"Task {i + 1}/{tasks.Length}: CTT = {task.CttLambdaIndex}, NBack = {task.NBackTaskIndex}");
+                var info = $"Task {i + 1}/{tasks.Length}: CTT = {task.CttLambdaIndex}, NBack = {task.NBackTaskIndex}";
+                Log(info);
             }
 
-            _gazeSampleIndex = 0;
-            _handLocalTotalSampleCount = 0;
-            _handLocalValidSampleCount = 0;
-            _topViewHandTotalSampleCount = 0;
-            _topViewHandValidSampleCount = 0;
+            lock (_headsetHandLocation)
+            {
+                HandLocation.Empty.CopyTo(_headsetHandLocation);
+            }
+            lock (_topviewHandLocation)
+            {
+                HandLocation.Empty.CopyTo(_topviewHandLocation);
+            }
+            lock (_nbackTaskMessage)
+            {
+                _nbackTaskMessage = "";
+            }
 
             _hasFinished = false;
 
@@ -85,6 +107,8 @@ class Recorder : IDisposable
                 if (cmd == null || _hasInterrupted)
                     break;
 
+                _startTime = 0;
+                _gazeSampleCount = 0;
                 _gazeTracker.Data += GazeTracker_Data;
 
                 if (_settings.IsHiddenWhileTracking)
@@ -92,17 +116,24 @@ class Recorder : IDisposable
                     WinUtils.HideConsoleWindow();
                 }
 
-                _handLocalTotalSampleCount = 0;
-                _handLocalValidSampleCount = 0;
-                _topViewHandTotalSampleCount = 0;
-                _topViewHandValidSampleCount = 0;
+                _headsetHandTotalSampleCount = 0;
+                _headsetHandValidSampleCount = 0;
+                _topviewHandTotalSampleCount = 0;
+                _topviewHandValidSampleCount = 0;
+                _lmStreamerPacketCount = 0;
 
                 _handTracker.Start();
                 _gazeTracker.Run();
 
                 Task.Run(async () =>
                 {
+                    if (_lmsClient.IsConnected)
+                    {
+                        _lmsClient.Send(NET_COMMAND_START);
+                    }
+
                     await Task.Delay(1000);
+
                     if (_nbtClient.IsConnected)
                     {
                         _nbtClient.Send(NET_COMMAND_START);
@@ -111,17 +142,30 @@ class Recorder : IDisposable
                     {
                         _cttClient.Send(NET_COMMAND_START);
                     }
-                    if (_lmsClient.IsConnected)
-                    {
-                        _lmsClient.Send(NET_COMMAND_START);
-                    }
                 });
 
-                Console.WriteLine("Press any key to interrupt");
+                //Stopwatch stopwatch = Stopwatch.StartNew();
+                //List<double> durations = [];
+
+                Console.WriteLine("Press Ctrl+C interrupt");
                 Console.TreatControlCAsInput = true;
                 while (!_hasFinished && !_hasInterrupted)
                 {
-                    Thread.Sleep(100);
+                    //var start = stopwatch.Elapsed;
+                    //while ((stopwatch.Elapsed - start).TotalMilliseconds < 5)
+                    //{
+                    //    Thread.Yield();
+                    //}
+
+                    if (!_gazeTracker.IsReady)  // debug mode
+                    {
+                        GazeTracker_Data(null, EyeHead.Empty);
+                    }
+                    else
+                    {
+                        Thread.Sleep(100);
+                    }
+
                     if (Console.KeyAvailable)
                     {
                         var key = Console.ReadKey(true);
@@ -131,6 +175,7 @@ class Recorder : IDisposable
                         }
                         break;
                     }
+                    //durations.Add((stopwatch.Elapsed - start).TotalMilliseconds);
                 }
 
                 Console.TreatControlCAsInput = false;
@@ -160,19 +205,22 @@ class Recorder : IDisposable
 
                 if (!_hasInterrupted)
                 {
+                    Thread.Sleep(500);
 
-                    var handLocalTrackingPercentage = (double)_handLocalValidSampleCount / (_handLocalTotalSampleCount > 0 ? _handLocalTotalSampleCount : 1) * 100;
-                    var topViewHandTrackingPercentage = (double)_topViewHandValidSampleCount / (_topViewHandTotalSampleCount > 0 ? _topViewHandTotalSampleCount : 1) * 100;
-                    Console.WriteLine($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (headset) / {topViewHandTrackingPercentage:F1} % (top-view)");
+                    //Console.WriteLine($"Cycle duration: {durations.Average():F4} ms");
 
+                    PrintSessionStatistics();
+                    int rating = GetRating();
+
+                    _logger.Add("Rating", rating);
                     _logger.Save();
 
-                    Thread.Sleep(1000); // Give some time for the trackers to finalize
+                    App.DebugLog.WriteLine($"RATING {rating}");
                 }
             }
             else
             {
-                Console.WriteLine("Not all devices are ready.");
+                Log("Not all devices are ready.");
                 _hasInterrupted = true;
             }
 
@@ -204,7 +252,9 @@ class Recorder : IDisposable
     readonly string NET_COMMAND_START = "start";
     readonly string NET_COMMAND_STOP = "stop";
 
-    readonly HandLocation _handLocation = new();
+    readonly HandLocation _headsetHandLocation = new();
+    readonly HandLocation _topviewHandLocation = new();
+    
     readonly Logger _logger = Logger.Instance;
     readonly NetClient _nbtClient = new();
     readonly NetClient _cttClient = new();
@@ -213,36 +263,83 @@ class Recorder : IDisposable
     readonly Settings _settings;
 
     string _nbackTaskMessage = "";
-    string _lmsData = "";
-    HandLocation _topViewHandLocation = HandLocation.Empty;
 
     GazeTracker? _gazeTracker = null;
 
     bool _hasFinished = false;
     bool _hasInterrupted = false;
 
-    int _gazeSampleIndex = 0;
-    int _handLocalTotalSampleCount = 0;
-    int _handLocalValidSampleCount = 0;
-    int _topViewHandTotalSampleCount = 0;
-    int _topViewHandValidSampleCount = 0;
+    long _startTime = 0;
+    int _gazeSampleCount = 0;
+    int _headsetHandTotalSampleCount = 0;
+    int _headsetHandValidSampleCount = 0;
+    int _topviewHandTotalSampleCount = 0;
+    int _topviewHandValidSampleCount = 0;
+    int _lmStreamerPacketCount = 0;
 
+    private void Log(string info)
+    {
+        Console.WriteLine(info);
+        App.DebugLog.WriteLine($"INFO {info}");
+    }
 
     private void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
     {
+        string info;
         if (ex != null)
         {
-            Console.WriteLine($"Cannot connect to {serviceName} on {client.IP}:{client.Port}. Is it running?\n  [{ex.Message}]");
+            info = $"Cannot connect to {serviceName} on {client.IP}:{client.Port}. Is it running?\n  [{ex.Message}]";
         }
         else if (!client.IsConnected)
         {
-            Console.WriteLine($"Cannot connect to {serviceName} on {client.IP}:{client.Port}. Is it running?");
+            info = $"Cannot connect to {serviceName} on {client.IP}:{client.Port}. Is it running?";
         }
         else
         {
-            Console.WriteLine($"Connected to {serviceName} on {client.IP}:{client.Port}.");
+            info = $"Connected to {serviceName} on {client.IP}:{client.Port}.";
         }
+
+        Log(info);
     }
+
+    private void PrintSessionStatistics()
+    {
+        var handLocalTrackingPercentage = (double)_headsetHandValidSampleCount / (_headsetHandTotalSampleCount > 0 ? _headsetHandTotalSampleCount : 1) * 100;
+        var topViewHandTrackingPercentage = (double)_topviewHandValidSampleCount / (_topviewHandTotalSampleCount > 0 ? _topviewHandTotalSampleCount : 1) * 100;
+
+        Log($"Gaze samples: {_gazeSampleCount}");
+        Log($"Headset hand tracking samples: {_headsetHandTotalSampleCount}");
+        Log($"Top-view hand tracking samples: {_topviewHandTotalSampleCount}");
+        Log($"Valid top-view hand tracking percentage: {100 * _topviewHandTotalSampleCount / _lmStreamerPacketCount:F1}");
+        Log($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (headset) / {topViewHandTrackingPercentage:F1} % (top-view)");
+        Console.WriteLine();
+    }
+
+    private int GetRating()
+    {
+        Console.WriteLine("Overall, how difficult or easy did you find this task?");
+        Console.WriteLine();
+        Console.WriteLine("Very difficult                                        Very easy");
+        Console.WriteLine("--- 1 ------ 2 ------ 3 ------ 4 ------ 5 ------ 6 ------ 7 ---");
+        Console.WriteLine();
+
+        int rating = 0;
+        for (; ; )
+        {
+            var input = Console.ReadLine();
+            if (!int.TryParse(input, out rating) || rating < 1 || rating > 7)
+            {
+                Console.WriteLine("Please enter a number between 1 and 7.");
+            }
+            else
+            {
+                break;
+            }
+        }
+        return rating;
+    }
+
+    // Event handlers
 
     private void NbtClient_Message(object? sender, string e)
     {
@@ -260,14 +357,29 @@ class Recorder : IDisposable
 
     private void LmsClient_Message(object? sender, string e)
     {
-        lock (_lmsData)
+        _lmStreamerPacketCount++;
+
+        var handLocation = HandLocation.FromJson(e);
+        if (handLocation != null)
         {
-            _lmsData = e;
+            _topviewHandTotalSampleCount++;
+
+            lock (_topviewHandLocation)
+            {
+                handLocation.CopyTo(_topviewHandLocation);
+
+                if (!_topviewHandLocation.IsEmpty)
+                {
+                    _topviewHandValidSampleCount++;
+                }
+            }
         }
     }
 
     private void GazeTracker_Data(object? sender, EyeHead e)
     {
+        _gazeSampleCount++;
+
         string eventInfo;
         lock (_nbackTaskMessage)
         {
@@ -275,52 +387,60 @@ class Recorder : IDisposable
             _nbackTaskMessage = "";
         }
 
-        lock (_lmsData)
+        if (_startTime == 0)
         {
-            _topViewHandTotalSampleCount++;
-
-            var handLocation = HandLocation.FromJson(_lmsData);
-            if (handLocation != null)
-            {
-                _topViewHandLocation = handLocation;
-            }
+            _startTime = e.Timestamp;
         }
 
-        if (!_topViewHandLocation.IsEmpty)
+        HandLocation headsetHandLocation;
+        lock (_headsetHandLocation)
         {
-            _topViewHandValidSampleCount++;
+            headsetHandLocation = _headsetHandLocation.Copy();
+        }
+        
+        HandLocation topviewHandLocation;
+        lock (_topviewHandLocation)
+        {
+            topviewHandLocation = _topviewHandLocation.Copy();
         }
 
-        lock (_handLocation)
-        {
-            _logger.Add(e.Timestamp, e.Eye.Yaw, e.Eye.Pitch, e.Head.Yaw, e.Head.Pitch,
-                e.Pupil.OpennessLeft, e.Pupil.SizeLeft, e.Pupil.OpennessRight, e.Pupil.SizeRight,
-                _handLocation.Palm.X, _handLocation.Palm.Y, _handLocation.Palm.Z,
-                _handLocation.Thumb.X, _handLocation.Thumb.Y, _handLocation.Thumb.Z,
-                _handLocation.Index.X, _handLocation.Index.Y, _handLocation.Index.Z,
-                _handLocation.Middle.X, _handLocation.Middle.Y, _handLocation.Middle.Z,
-                _topViewHandLocation.Palm.X, _topViewHandLocation.Palm.Y, _topViewHandLocation.Palm.Z,
-                _topViewHandLocation.Thumb.X, _topViewHandLocation.Thumb.Y, _topViewHandLocation.Thumb.Z,
-                _topViewHandLocation.Index.X, _topViewHandLocation.Index.Y, _topViewHandLocation.Index.Z,
-                _topViewHandLocation.Middle.X, _topViewHandLocation.Middle.Y, _topViewHandLocation.Middle.Z,
-                eventInfo);
+        _logger.Add(e.Timestamp,
+            e.Eye.Yaw.ToString("F4"), e.Eye.Pitch.ToString("F4"),
+            e.Head.Yaw.ToString("F4"), e.Head.Pitch.ToString("F4"),
+            e.Pupil.OpennessLeft.ToString("F4"), e.Pupil.SizeLeft.ToString("F4"),
+            e.Pupil.OpennessRight.ToString("F4"), e.Pupil.SizeRight.ToString("F4"),
+            headsetHandLocation.Palm.X.ToString("F2"), headsetHandLocation.Palm.Y.ToString("F2"), headsetHandLocation.Palm.Z.ToString("F2"),
+            headsetHandLocation.Thumb.X.ToString("F2"), headsetHandLocation.Thumb.Y.ToString("F2"), headsetHandLocation.Thumb.Z.ToString("F2"),
+            headsetHandLocation.Index.X.ToString("F2"), headsetHandLocation.Index.Y.ToString("F2"), headsetHandLocation.Index.Z.ToString("F2"),
+            headsetHandLocation.Middle.X.ToString("F2"), headsetHandLocation.Middle.Y.ToString("F2"), headsetHandLocation.Middle.Z.ToString("F2"),
+            topviewHandLocation.Palm.X.ToString("F2"), topviewHandLocation.Palm.Y.ToString("F2"), topviewHandLocation.Palm.Z.ToString("F2"),
+            topviewHandLocation.Thumb.X.ToString("F2"), topviewHandLocation.Thumb.Y.ToString("F2"), topviewHandLocation.Thumb.Z.ToString("F2"),
+            topviewHandLocation.Index.X.ToString("F2"), topviewHandLocation.Index.Y.ToString("F2"), topviewHandLocation.Index.Z.ToString("F2"),
+            topviewHandLocation.Middle.X.ToString("F2"), topviewHandLocation.Middle.Y.ToString("F2"), topviewHandLocation.Middle.Z.ToString("F2"),
+            eventInfo);
 
-            if (_settings.IsVerbose && (_gazeSampleIndex++ % 60) == 0)
+        if ((_gazeSampleCount % 50) == 0)
+        {
+            if (_settings.IsVerbose)
             {
-                Console.WriteLine($"{e.Timestamp}");
+                Console.WriteLine($"{e.Timestamp - _startTime}");
                 Console.WriteLine($"   Gaze: {e.Eye.Yaw,-6:F1} {e.Eye.Pitch,-6:F1}");
                 Console.WriteLine($"   Pupil: {e.Pupil.OpennessLeft,-6:F1} {e.Pupil.SizeLeft,-6:F1} {e.Pupil.OpennessRight,-6:F1} {e.Pupil.SizeRight,-6:F1}");
                 Console.WriteLine($"   Head: {e.Head.Yaw,-6:F1} {e.Head.Pitch,-6:F1}");
                 Console.WriteLine($"   Hand (Headset)");
-                Console.WriteLine($"      Palm: {_handLocation.Palm.X,-6:F1} {_handLocation.Palm.Y,-6:F1} {_handLocation.Palm.Z,-6:F1}");
-                Console.WriteLine($"      Thumb: {_handLocation.Thumb.X,-6:F1} {_handLocation.Thumb.Y,-6:F1} {_handLocation.Thumb.Z,-6:F1}");
-                Console.WriteLine($"      Index: {_handLocation.Index.X,-6:F1} {_handLocation.Index.Y,-6:F1} {_handLocation.Index.Z,-6:F1}");
-                Console.WriteLine($"      Middle: {_handLocation.Middle.X,-6:F1} {_handLocation.Middle.Y,-6:F1} {_handLocation.Middle.Z,-6:F1}");
+                Console.WriteLine($"      Palm: {headsetHandLocation.Palm.X,-6:F1} {headsetHandLocation.Palm.Y,-6:F1} {headsetHandLocation.Palm.Z,-6:F1}");
+                Console.WriteLine($"      Thumb: {headsetHandLocation.Thumb.X,-6:F1} {headsetHandLocation.Thumb.Y,-6:F1} {headsetHandLocation.Thumb.Z,-6:F1}");
+                Console.WriteLine($"      Index: {headsetHandLocation.Index.X,-6:F1} {headsetHandLocation.Index.Y,-6:F1} {headsetHandLocation.Index.Z,-6:F1}");
+                Console.WriteLine($"      Middle: {headsetHandLocation.Middle.X,-6:F1} {headsetHandLocation.Middle.Y,-6:F1} {headsetHandLocation.Middle.Z,-6:F1}");
                 Console.WriteLine($"   Hand (TopView)");
-                Console.WriteLine($"      Palm: {_topViewHandLocation.Palm.X,-6:F1} {_topViewHandLocation.Palm.Y,-6:F1} {_topViewHandLocation.Palm.Z,-6:F1}");
-                Console.WriteLine($"      Thumb: {_topViewHandLocation.Thumb.X,-6:F1} {_topViewHandLocation.Thumb.Y,-6:F1} {_topViewHandLocation.Thumb.Z,-6:F1}");
-                Console.WriteLine($"      Index: {_topViewHandLocation.Index.X,-6:F1} {_topViewHandLocation.Index.Y,-6:F1} {_topViewHandLocation.Index.Z,-6:F1}");
-                Console.WriteLine($"      Middle: {_topViewHandLocation.Middle.X,-6:F1} {_topViewHandLocation.Middle.Y,-6:F1} {_topViewHandLocation.Middle.Z,-6:F1}");
+                Console.WriteLine($"      Palm: {topviewHandLocation.Palm.X,-6:F1} {topviewHandLocation.Palm.Y,-6:F1} {topviewHandLocation.Palm.Z,-6:F1}");
+                Console.WriteLine($"      Thumb: {topviewHandLocation.Thumb.X,-6:F1} {topviewHandLocation.Thumb.Y,-6:F1} {topviewHandLocation.Thumb.Z,-6:F1}");
+                Console.WriteLine($"      Index: {topviewHandLocation.Index.X,-6:F1} {topviewHandLocation.Index.Y,-6:F1} {topviewHandLocation.Index.Z,-6:F1}");
+                Console.WriteLine($"      Middle: {topviewHandLocation.Middle.X,-6:F1} {topviewHandLocation.Middle.Y,-6:F1} {topviewHandLocation.Middle.Z,-6:F1}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[{e.Timestamp - _startTime}] Gaze = {_gazeSampleCount}, Headset LM = {_headsetHandTotalSampleCount}, Topview LM = {_topviewHandTotalSampleCount}");
             }
         }
     }
@@ -330,18 +450,18 @@ class Recorder : IDisposable
         if (_gazeTracker == null)
             return;
 
-        var handLoc = _handTracker.CompensateHeadRotation(_gazeTracker.HeadRotation, e);
+        var handLocation = _handTracker.CompensateHeadRotation(_gazeTracker.HeadRotation, e);
 
-        lock (_handLocation)
+        lock (_headsetHandLocation)
         {
-            handLoc.CopyTo(_handLocation);
+            handLocation.CopyTo(_headsetHandLocation);
         }
 
         if (!e.Palm.IsZero)
         {
-            _handLocalValidSampleCount++;
+            _headsetHandValidSampleCount++;
         }
 
-        _handLocalTotalSampleCount++;
+        _headsetHandTotalSampleCount++;
     }
 }
