@@ -11,9 +11,9 @@ internal class Debug : IDisposable
         _startTimestamp = DateTime.Now.Ticks;
     }
 
-    public void WriteLine(string line)
+    public void WriteLine(string field, string data)
     {
-        _stream.WriteLine($"{(DateTime.Now.Ticks - _startTimestamp)/10000} {line}");
+        _stream.WriteLine($"{(DateTime.Now.Ticks - _startTimestamp)/10000}\t{field}\t{data}");
     }
 
     public void Dispose()

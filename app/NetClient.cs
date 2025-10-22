@@ -117,7 +117,7 @@ public class NetClient : IDisposable
                     bytes.CopyTo(newBuffer, bufferSize - BUFFER_SIZE);
                     buffer = newBuffer;
 
-                    App.Debug.WriteLine($"OVERFLOW buffer size increased to {bufferSize}, total data size is {byteCount}");
+                    App.Debug.WriteLine("OVERFLOW", $"buffer size {bufferSize} with {byteCount} bytes");
                 }
 
                 for (int i = byteCount - 1; i >= 0; i--)

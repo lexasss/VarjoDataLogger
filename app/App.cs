@@ -49,6 +49,8 @@ class Recorder : IDisposable
         HandleConnectionResult("Leap Motion Streamer", _lmsClient, lmsConnTask.Result);
 
         _handTracker.Data += HandTracker_Data;
+
+        _udpReceiver.DataReceived += UdpReceiver_DataReceived;
     }
 
     public void Run()
@@ -206,7 +208,7 @@ class Recorder : IDisposable
                     _logger.Add("Rating", rating);
                     _logger.Save();
 
-                    App.Debug.WriteLine($"RATING {rating}");
+                    App.Debug.WriteLine("RATING", $"{rating}");
                 }
             }
             else
@@ -233,6 +235,13 @@ class Recorder : IDisposable
         _cttClient.Dispose();
         _lmsClient.Dispose();
 
+        try
+        {
+            _udpReceiver.DataReceived -= UdpReceiver_DataReceived;
+        }
+        catch { }
+        _udpReceiver.Dispose();
+
         GC.SuppressFinalize(this);
     }
 
@@ -253,6 +262,9 @@ class Recorder : IDisposable
     readonly HandTracker _handTracker = new();
     readonly Settings _settings;
 
+    // UDP receiver for top-view hand locations
+    readonly UdpReceiver _udpReceiver = new();
+
     string _nbackTaskMessage = "";
 
     GazeTracker? _gazeTracker = null;
@@ -271,7 +283,7 @@ class Recorder : IDisposable
     private static void Log(string info)
     {
         Console.WriteLine(info);
-        App.Debug.WriteLine($"INFO {info}");
+        App.Debug.WriteLine("INFO", $"{info}");
     }
 
     private static void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
@@ -325,7 +337,8 @@ class Recorder : IDisposable
         Log($"Gaze samples: {_gazeSampleCount}");
         Log($"Headset hand tracking samples: {_headsetHandTotalSampleCount}");
         Log($"Top-view hand tracking samples: {_topviewHandTotalSampleCount}");
-        Log($"Valid top-view hand tracking percentage: {100 * _topviewHandTotalSampleCount / _lmStreamerPacketCount:F1}");
+        if (_lmStreamerPacketCount > 0)
+            Log($"Valid top-view hand tracking percentage: {100 * _topviewHandTotalSampleCount / _lmStreamerPacketCount:F1}");
         Log($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (headset) / {topViewHandTrackingPercentage:F1} % (top-view)");
         Console.WriteLine();
     }
@@ -349,7 +362,7 @@ class Recorder : IDisposable
     private void LmsClient_Message(object? sender, string e)
     {
         _lmStreamerPacketCount++;
-
+        /*
         var handLocation = HandLocation.FromJson(e);
         if (handLocation != null)
         {
@@ -363,6 +376,21 @@ class Recorder : IDisposable
                 {
                     _topviewHandValidSampleCount++;
                 }
+            }
+        }*/
+    }
+
+    private void UdpReceiver_DataReceived(object? sender, HandLocation handLocation)
+    {
+        _topviewHandTotalSampleCount++;
+
+        lock (_topviewHandLocation)
+        {
+            handLocation.CopyTo(_topviewHandLocation);
+
+            if (!_topviewHandLocation.IsEmpty)
+            {
+                _topviewHandValidSampleCount++;
             }
         }
     }
