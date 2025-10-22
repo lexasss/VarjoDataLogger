@@ -1,22 +1,14 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics;
+using System.Globalization;
 
 namespace VarjoDataLogger;
 
 class App
 {
     public static string Name => "Varjo Data Logger";
+    public static Debug Debug { get; } = new();
 
-    public static StreamWriter DebugLog { get; private set; }
-
-    static App()
-    {
-        if (!Directory.Exists("debug"))
-            Directory.CreateDirectory("debug");
-
-        DebugLog = new(Path.Combine("debug", $"debug-{DateTime.Now:u}.txt".ToPath()));
-    }
-
-    public static void Main(string[] args)
+    public static void Main()
     {
         // Set the US-culture across the application to avoid decimal point parsing/logging issues
         var culture = CultureInfo.GetCultureInfo("en-US");
@@ -32,7 +24,7 @@ class App
         using var recorder = new Recorder(settings);
         recorder.Run();
 
-        DebugLog.Dispose();
+        Debug.Dispose();
     }
 }
 
@@ -144,22 +136,22 @@ class Recorder : IDisposable
                     }
                 });
 
-                //Stopwatch stopwatch = Stopwatch.StartNew();
+                Stopwatch stopwatch = Stopwatch.StartNew();
                 //List<double> durations = [];
 
                 Console.WriteLine("Press Ctrl+C interrupt");
                 Console.TreatControlCAsInput = true;
                 while (!_hasFinished && !_hasInterrupted)
                 {
-                    //var start = stopwatch.Elapsed;
-                    //while ((stopwatch.Elapsed - start).TotalMilliseconds < 5)
-                    //{
-                    //    Thread.Yield();
-                    //}
-
                     if (!_gazeTracker.IsReady)  // debug mode
                     {
+                        var start = stopwatch.Elapsed;
+                        while ((stopwatch.Elapsed - start).TotalMilliseconds < 5)
+                        {
+                            Thread.Yield();
+                        }
                         GazeTracker_Data(null, EyeHead.Empty);
+                        //durations.Add((stopwatch.Elapsed - start).TotalMilliseconds);
                     }
                     else
                     {
@@ -175,7 +167,6 @@ class Recorder : IDisposable
                         }
                         break;
                     }
-                    //durations.Add((stopwatch.Elapsed - start).TotalMilliseconds);
                 }
 
                 Console.TreatControlCAsInput = false;
@@ -215,7 +206,7 @@ class Recorder : IDisposable
                     _logger.Add("Rating", rating);
                     _logger.Save();
 
-                    App.DebugLog.WriteLine($"RATING {rating}");
+                    App.Debug.WriteLine($"RATING {rating}");
                 }
             }
             else
@@ -277,13 +268,13 @@ class Recorder : IDisposable
     int _topviewHandValidSampleCount = 0;
     int _lmStreamerPacketCount = 0;
 
-    private void Log(string info)
+    private static void Log(string info)
     {
         Console.WriteLine(info);
-        App.DebugLog.WriteLine($"INFO {info}");
+        App.Debug.WriteLine($"INFO {info}");
     }
 
-    private void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
+    private static void HandleConnectionResult(string serviceName, NetClient client, Exception? ex)
     {
         string info;
         if (ex != null)
@@ -302,20 +293,7 @@ class Recorder : IDisposable
         Log(info);
     }
 
-    private void PrintSessionStatistics()
-    {
-        var handLocalTrackingPercentage = (double)_headsetHandValidSampleCount / (_headsetHandTotalSampleCount > 0 ? _headsetHandTotalSampleCount : 1) * 100;
-        var topViewHandTrackingPercentage = (double)_topviewHandValidSampleCount / (_topviewHandTotalSampleCount > 0 ? _topviewHandTotalSampleCount : 1) * 100;
-
-        Log($"Gaze samples: {_gazeSampleCount}");
-        Log($"Headset hand tracking samples: {_headsetHandTotalSampleCount}");
-        Log($"Top-view hand tracking samples: {_topviewHandTotalSampleCount}");
-        Log($"Valid top-view hand tracking percentage: {100 * _topviewHandTotalSampleCount / _lmStreamerPacketCount:F1}");
-        Log($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (headset) / {topViewHandTrackingPercentage:F1} % (top-view)");
-        Console.WriteLine();
-    }
-
-    private int GetRating()
+    private static int GetRating()
     {
         Console.WriteLine("Overall, how difficult or easy did you find this task?");
         Console.WriteLine();
@@ -323,7 +301,7 @@ class Recorder : IDisposable
         Console.WriteLine("--- 1 ------ 2 ------ 3 ------ 4 ------ 5 ------ 6 ------ 7 ---");
         Console.WriteLine();
 
-        int rating = 0;
+        int rating;
         for (; ; )
         {
             var input = Console.ReadLine();
@@ -337,6 +315,19 @@ class Recorder : IDisposable
             }
         }
         return rating;
+    }
+
+    private void PrintSessionStatistics()
+    {
+        var handLocalTrackingPercentage = (double)_headsetHandValidSampleCount / (_headsetHandTotalSampleCount > 0 ? _headsetHandTotalSampleCount : 1) * 100;
+        var topViewHandTrackingPercentage = (double)_topviewHandValidSampleCount / (_topviewHandTotalSampleCount > 0 ? _topviewHandTotalSampleCount : 1) * 100;
+
+        Log($"Gaze samples: {_gazeSampleCount}");
+        Log($"Headset hand tracking samples: {_headsetHandTotalSampleCount}");
+        Log($"Top-view hand tracking samples: {_topviewHandTotalSampleCount}");
+        Log($"Valid top-view hand tracking percentage: {100 * _topviewHandTotalSampleCount / _lmStreamerPacketCount:F1}");
+        Log($"Hand tracking percentage: {handLocalTrackingPercentage:F1} % (headset) / {topViewHandTrackingPercentage:F1} % (top-view)");
+        Console.WriteLine();
     }
 
     // Event handlers

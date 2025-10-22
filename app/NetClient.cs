@@ -20,6 +20,7 @@ public class NetClient : IDisposable
     public NetClient()
     {
         _client = new TcpClient();
+        _client.NoDelay = true;
     }
 
     public async Task<Exception?> Connect(string ip, int port, int timeout = 3000)
@@ -116,7 +117,7 @@ public class NetClient : IDisposable
                     bytes.CopyTo(newBuffer, bufferSize - BUFFER_SIZE);
                     buffer = newBuffer;
 
-                    App.DebugLog.WriteLine($"OVERFLOW buffer size increased to {bufferSize}, total data size is {byteCount}");
+                    App.Debug.WriteLine($"OVERFLOW buffer size increased to {bufferSize}, total data size is {byteCount}");
                 }
 
                 for (int i = byteCount - 1; i >= 0; i--)

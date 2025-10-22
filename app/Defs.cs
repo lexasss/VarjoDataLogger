@@ -64,11 +64,11 @@ public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle
             try
             {
                 result = JsonSerializer.Deserialize<HandLocation>(json);
-                App.DebugLog.WriteLine($"JSON hand location {result?.Palm.X} {result?.Palm.Y} {result?.Palm.Z}");
+                App.Debug.WriteLine($"HAND {result?.Palm.X} {result?.Palm.Y} {result?.Palm.Z}");
             }
             catch
             {
-                App.DebugLog.WriteLine($"ERROR while parsing json {json}");
+                App.Debug.WriteLine($"ERROR in {json}");
 
                 var records = json.Split('\n');
                 for (int i = records.Length - 1; i >= 0; i--)
@@ -78,13 +78,13 @@ public class HandLocation(Vector palm, Vector thumb, Vector index, Vector middle
                         result = JsonSerializer.Deserialize<HandLocation>(records[i]);
                         if (result is not null)
                         {
-                            App.DebugLog.WriteLine($"  - RESTORED from {i+1}/{records.Length}");
+                            App.Debug.WriteLine($"  RESTORED from {i+1}/{records.Length}");
                             break;
                         }
                     }
                     catch
                     {
-                        App.DebugLog.WriteLine($"  - FAILED at {i+1}: {json}");
+                        App.Debug.WriteLine($"  FAILED at {i+1}: {json}");
                     }
                 }
             }
