@@ -67,7 +67,7 @@ public class TaskSetup
             return;
         }
 
-        var filename = Path.Combine(folder, $"{ConditionsFilename}.txt");
+        var filename = Path.Combine(folder, $"{ConditionsFilename}-{DateTime.Now:u}.txt".ToPath());
         try
         {
             StringBuilder sb = new StringBuilder();

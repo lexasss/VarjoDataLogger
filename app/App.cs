@@ -39,6 +39,7 @@ class Recorder : IDisposable
         nbackConnTask.Wait();
         HandleConnectionResult("N-Back task", _nbtClient, nbackConnTask.Result);
 
+        _cttClient.Message += CttClient_Message; ;
         var cttConnTask = _cttClient.Connect(_settings.CttIP, NetClient.CttPort);
         cttConnTask.Wait();
         HandleConnectionResult("CTT", _cttClient, cttConnTask.Result);
@@ -49,8 +50,13 @@ class Recorder : IDisposable
         HandleConnectionResult("Leap Motion Streamer", _lmsClient, lmsConnTask.Result);
 
         _handTracker.Data += HandTracker_Data;
+        _lmsUdpClient.DataReceived += LmsUdpClient_DataReceived;
 
-        _udpReceiver.DataReceived += UdpReceiver_DataReceived;
+        Task[] tasks = [
+            RequestAndGetReply(_cttClient, "lambdas", () => _lambdas.Length > 0),
+            RequestAndGetReply(_nbtClient, "get", () => _nbackTaskDescriptions.Length > 1)
+        ];
+        Task.WaitAll(tasks);
     }
 
     public void Run()
@@ -72,7 +78,10 @@ class Recorder : IDisposable
 
                 _nbtClient.Send($"{NET_COMMAND_SET_NBT_TASK}{task.NBackTaskIndex}");
                 _cttClient.Send($"{NET_COMMAND_SET_CTT_LAMBDA}{task.CttLambdaIndex}");
-                var info = $"Task {i + 1}/{tasks.Length}: CTT = {task.CttLambdaIndex}, NBack = {task.NBackTaskIndex}";
+
+                var nbacktaskDescription = _nbackTaskDescriptions[Math.Min(_nbackTaskDescriptions.Length, task.NBackTaskIndex)];
+                var lambda = task.CttLambdaIndex < _lambdas.Length ? _lambdas[task.CttLambdaIndex] : task.CttLambdaIndex;
+                var info = $"Task {i + 1}/{tasks.Length}: CTT = {lambda}, NBack = {nbacktaskDescription} [{task.NBackTaskIndex}]";
                 Log(info);
             }
 
@@ -237,10 +246,10 @@ class Recorder : IDisposable
 
         try
         {
-            _udpReceiver.DataReceived -= UdpReceiver_DataReceived;
+            _lmsUdpClient.DataReceived -= LmsUdpClient_DataReceived;
         }
         catch { }
-        _udpReceiver.Dispose();
+        _lmsUdpClient.Dispose();
 
         GC.SuppressFinalize(this);
     }
@@ -259,13 +268,13 @@ class Recorder : IDisposable
     readonly NetClient _nbtClient = new();
     readonly NetClient _cttClient = new();
     readonly NetClient _lmsClient = new();
+    readonly UdpReceiver _lmsUdpClient = new();
     readonly HandTracker _handTracker = new();
     readonly Settings _settings;
 
-    // UDP receiver for top-view hand locations
-    readonly UdpReceiver _udpReceiver = new();
-
     string _nbackTaskMessage = "";
+    string[] _nbackTaskDescriptions = ["Unknown"];
+    double[] _lambdas = [];
 
     GazeTracker? _gazeTracker = null;
 
@@ -343,44 +352,85 @@ class Recorder : IDisposable
         Console.WriteLine();
     }
 
+    private async Task RequestAndGetReply(NetClient client, string request, Func<bool> hasReply)
+    {
+        if (!client.IsConnected)
+            return;
+
+        await Task.Delay(100);
+        client.Send(request);
+
+        using var cts = new CancellationTokenSource(3000);
+        try
+        {
+            await Task.Run(() => {
+                while (cts.Token.IsCancellationRequested == false)
+                {
+                    if (hasReply())
+                    {
+                        break;
+                    }
+                    Thread.Sleep(100);
+                }
+            }, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            Log($"Timeout for request '{request}'.");
+        }
+    }
+
     // Event handlers
+
+    private void CttClient_Message(object? sender, string e)
+    {
+        if (e.StartsWith("LMB") && e.Length > 3)
+        {
+            var items = new List<double>();
+            foreach (var item in e.Substring(3).Split(';'))
+            {
+                if (double.TryParse(item, out double lambda))
+                {
+                    items.Add(lambda);
+                }
+            }
+            _lambdas = items.ToArray();
+        }
+    }
 
     private void NbtClient_Message(object? sender, string e)
     {
-        lock (_nbackTaskMessage)
-        {
-            _nbackTaskMessage = e;
-        }
-
-        Console.WriteLine($"[NBT] Received: {e}");
         if (e.StartsWith("FIN"))
         {
             _hasFinished = true;
+        }
+        else if (e.StartsWith("TSK") && e.Length > 3)
+        {
+            var items = new List<string>();
+            foreach (var item in e.Substring(3).Split(';'))
+            {
+                var p = item.Split(',');
+                if (p.Length >= 2)
+                {
+                    var order = p[1] == "Ordered" ? "fixed" : "randomized";
+                    items.Add($"{p[0]} {order} numbers");
+                }
+            }
+            _nbackTaskDescriptions = items.ToArray();
+        }
+
+        lock (_nbackTaskMessage)
+        {
+            _nbackTaskMessage = e;
         }
     }
 
     private void LmsClient_Message(object? sender, string e)
     {
         _lmStreamerPacketCount++;
-        /*
-        var handLocation = HandLocation.FromJson(e);
-        if (handLocation != null)
-        {
-            _topviewHandTotalSampleCount++;
-
-            lock (_topviewHandLocation)
-            {
-                handLocation.CopyTo(_topviewHandLocation);
-
-                if (!_topviewHandLocation.IsEmpty)
-                {
-                    _topviewHandValidSampleCount++;
-                }
-            }
-        }*/
     }
 
-    private void UdpReceiver_DataReceived(object? sender, HandLocation handLocation)
+    private void LmsUdpClient_DataReceived(object? sender, HandLocation handLocation)
     {
         _topviewHandTotalSampleCount++;
 
