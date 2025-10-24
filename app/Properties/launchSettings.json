@@ -2,7 +2,7 @@
   "profiles": {
     "VarjoDataLogger": {
       "commandName": "Project",
-      "commandLineArgs": "--log C:\\Users\\olequ\\Documents\\_temp --debug --setup tasks.json --task 5 --hide"
+      "commandLineArgs": "--log C:\\Users\\olequ\\Documents\\_temp --debug --setup tasks.json --hide"
     }
   }
 }

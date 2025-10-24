@@ -39,7 +39,7 @@ public class TaskSetup
         return result.ToArray();
     }
 
-    public static TaskSetup Load(string? filename, int index = 0)
+    public static TaskSetup Load(string? filename, int index = -1)
     {
         if (string.IsNullOrEmpty(filename) || !File.Exists(filename))
         {
@@ -50,7 +50,14 @@ public class TaskSetup
         {
             var json = File.ReadAllText(filename);
             var taskSets = System.Text.Json.JsonSerializer.Deserialize<TaskSetup[]>(json) ?? [new TaskSetup()];
-            return taskSets[index];
+            if (index < 0 || index >= taskSets.Length)
+            {
+                return taskSets[^1];
+            }
+            else
+            {
+                return taskSets[index];
+            }
         }
         catch (Exception ex)
         {

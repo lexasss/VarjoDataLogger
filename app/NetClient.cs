@@ -56,6 +56,9 @@ public class NetClient : IDisposable
 
     public void Send(string message)
     {
+        if (!IsConnected)
+            return;
+
         var bytes = System.Text.Encoding.ASCII.GetBytes(message + "\n");
         _stream?.WriteAsync(bytes, 0, bytes.Length);
     }

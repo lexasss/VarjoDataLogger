@@ -10,6 +10,7 @@
     <Authors>Oleg Spakov</Authors>
     <Company>Tampere University</Company>
     <Description>Log data received from Varjo XR headset while synchronizing CTT and N-Back Task applications</Description>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>

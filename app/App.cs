@@ -21,10 +21,15 @@ class App
             return;
         }
 
-        using var recorder = new Recorder(settings);
-        recorder.Run();
-
-        Debug.Dispose();
+        try
+        {
+            using var recorder = new Recorder(settings);
+            recorder.Run();
+        }
+        finally
+        {
+            Debug.Dispose();
+        }
     }
 }
 
@@ -33,6 +38,9 @@ class Recorder : IDisposable
     public Recorder(Settings settings)
     {
         _settings = settings;
+
+        Task.Delay(500).Wait();
+        AskParticipantId();
 
         _nbtClient.Message += NbtClient_Message;
         var nbackConnTask = _nbtClient.Connect(_settings.NBackTaskIP, NetClient.NBackTaskPort);
@@ -53,10 +61,17 @@ class Recorder : IDisposable
         _lmsUdpClient.DataReceived += LmsUdpClient_DataReceived;
 
         Task[] tasks = [
-            RequestAndGetReply(_cttClient, "lambdas", () => _lambdas.Length > 0),
-            RequestAndGetReply(_nbtClient, "get", () => _nbackTaskDescriptions.Length > 1)
+            RequestAndGetReply(_cttClient, NET_COMMAND_CTT_GET_LAMBDAS, () => _lambdas.Length > 0),
+            RequestAndGetReply(_nbtClient, NET_COMMAND_NBT_GET_TASKS, () => _nbackTaskDescriptions.Length > 1)
         ];
         Task.WaitAll(tasks);
+
+        if (_settings.Pace != null)
+        {
+            Task.Delay(200).Wait();
+            _nbtClient.Send($"{NET_COMMAND_NTB_LOAD_PROFILE}{_settings.Pace}");
+            Task.Delay(200).Wait();
+        }
     }
 
     public void Run()
@@ -65,6 +80,11 @@ class Recorder : IDisposable
 
         var tasks = TaskSetup.Load(_settings.SetupFilename, _settings.TaskIndex).GetAllTasks();
         TaskSetup.SaveTo(_settings.LogFolder, tasks);
+
+        if (_settings.Pace != null)
+        {
+            Log($"\nPace: {_settings.Pace}");
+        }
 
         for (int i = 0; i < tasks.Length; i++)
         {
@@ -76,10 +96,10 @@ class Recorder : IDisposable
             {
                 Console.WriteLine();
 
-                _nbtClient.Send($"{NET_COMMAND_SET_NBT_TASK}{task.NBackTaskIndex}");
-                _cttClient.Send($"{NET_COMMAND_SET_CTT_LAMBDA}{task.CttLambdaIndex}");
+                _nbtClient.Send($"{NET_COMMAND_NBT_SET_TASK}{task.NBackTaskIndex}");
+                _cttClient.Send($"{NET_COMMAND_CTT_SET_LAMBDA}{task.CttLambdaIndex}");
 
-                var nbacktaskDescription = _nbackTaskDescriptions[Math.Min(_nbackTaskDescriptions.Length, task.NBackTaskIndex)];
+                var nbacktaskDescription = _nbackTaskDescriptions[Math.Min(_nbackTaskDescriptions.Length - 1, task.NBackTaskIndex)];
                 var lambda = task.CttLambdaIndex < _lambdas.Length ? _lambdas[task.CttLambdaIndex] : task.CttLambdaIndex;
                 var info = $"Task {i + 1}/{tasks.Length}: CTT = {lambda}, NBack = {nbacktaskDescription} [{task.NBackTaskIndex}]";
                 Log(info);
@@ -108,7 +128,10 @@ class Recorder : IDisposable
                 var cmd = Console.ReadLine();
 
                 if (cmd == null || _hasInterrupted)
+                {
+                    _hasInterrupted = true;
                     break;
+                }
 
                 _startTime = 0;
                 _gazeSampleCount = 0;
@@ -209,6 +232,7 @@ class Recorder : IDisposable
                 {
                     Thread.Sleep(500);
 
+                    _nbtClient.Send(NET_COMMAND_NBT_GET_LAST_LOG);
                     //Console.WriteLine($"Cycle duration: {durations.Average():F4} ms");
 
                     PrintSessionStatistics();
@@ -231,6 +255,15 @@ class Recorder : IDisposable
 
             if (_hasInterrupted)
                 break;
+        }
+
+        if (!_hasInterrupted)
+        {
+            LogFileManager.Collect(_settings.ParticipantID, _settings.Pace);
+        }
+        else
+        {
+            LogFileManager.ClearTemporaryFiles();
         }
 
         Console.WriteLine("Exiting....");
@@ -256,8 +289,12 @@ class Recorder : IDisposable
 
     // Internal
 
-    readonly string NET_COMMAND_SET_NBT_TASK = "set";
-    readonly string NET_COMMAND_SET_CTT_LAMBDA = "lambda";
+    readonly string NET_COMMAND_NBT_GET_TASKS = "tasks";
+    readonly string NET_COMMAND_NBT_SET_TASK = "task";
+    readonly string NET_COMMAND_NBT_GET_LAST_LOG = "getlog";
+    readonly string NET_COMMAND_NTB_LOAD_PROFILE = "profile";
+    readonly string NET_COMMAND_CTT_GET_LAMBDAS = "lambdas";
+    readonly string NET_COMMAND_CTT_SET_LAMBDA = "lambda";
     readonly string NET_COMMAND_START = "start";
     readonly string NET_COMMAND_STOP = "stop";
 
@@ -352,7 +389,7 @@ class Recorder : IDisposable
         Console.WriteLine();
     }
 
-    private async Task RequestAndGetReply(NetClient client, string request, Func<bool> hasReply)
+    private static async Task RequestAndGetReply(NetClient client, string request, Func<bool> hasReply)
     {
         if (!client.IsConnected)
             return;
@@ -378,6 +415,48 @@ class Recorder : IDisposable
         {
             Log($"Timeout for request '{request}'.");
         }
+    }
+
+    private void AskParticipantId()
+    {
+        var lastID = LogFileManager.LastParticipantId;
+        if (lastID > 0)
+        {
+            Console.WriteLine($"The last participant ID is {lastID}");
+        }
+        Console.Write("Participant ID: ");
+
+        for (; ; )
+        {
+            var input = Console.ReadLine();
+            if (input == null)
+            {
+                throw new Exception("Participant ID is required.");
+            }
+            else if (string.IsNullOrWhiteSpace(input))
+            {
+                _settings.ParticipantID = 0;
+                break;
+            }
+            else if (int.TryParse(input, out int pid) && pid > 0 && pid < 100)
+            {
+                if (LogFileManager.IsParticipantDataFull(pid))
+                {
+                    Console.Write("This participant has all data collected. Enter another ID: ");
+                }
+                else
+                {
+                    _settings.ParticipantID = pid;
+                    break;
+                }
+            }
+            else
+            {
+                Console.Write("Please enter a valid participant ID (1-99): ");
+            }
+        }
+
+        App.Debug.WriteLine("INFO", $"Participant ID: {_settings.ParticipantID}");
     }
 
     // Event handlers
@@ -417,6 +496,15 @@ class Recorder : IDisposable
                 }
             }
             _nbackTaskDescriptions = items.ToArray();
+        }
+        else if (e.StartsWith("LOG"))
+        {
+            if (e.Length > 3)
+            {
+                var payload = e.Substring(3);
+                LogFileManager.SaveTemporaryLogFile($"nbt-{DateTime.Now:u}.txt".ToPath(), payload);
+            }
+            e = e[..3];
         }
 
         lock (_nbackTaskMessage)
