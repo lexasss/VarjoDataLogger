@@ -12,7 +12,7 @@ internal static class LogFileManager
             var dirs = Directory.GetDirectories(_destinationFolder, "P??");
             var ids = dirs
                 .Select(dir => Path.GetFileName(dir))
-                .Where(name => name != null && name.StartsWith("P") && int.TryParse(name[1..], out _))
+                .Where(name => name != null && name.StartsWith('P') && int.TryParse(name[1..], out _))
                 .Select(name => int.Parse(name![1..]))
                 .ToList();
             return ids.Count > 0 ? ids.Max() : 0;

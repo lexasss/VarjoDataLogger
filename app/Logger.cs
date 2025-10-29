@@ -29,8 +29,8 @@ internal class Logger
         if (_records.Count == 0)
             return null;
 
-        var folderName = "";
-        if (Settings.TryGetInstance(out Settings settings, out string? error))
+        var folderName = string.Empty;
+        if (Settings.TryGetInstance(out Settings settings, out _))
         {
             folderName = settings.LogFolder;
         }

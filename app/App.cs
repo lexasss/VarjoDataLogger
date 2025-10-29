@@ -24,10 +24,8 @@ class App
 
         try
         {
-            using (var recorder = new Recorder(settings))
-            {
-                recorder.Run();
-            }
+            using var recorder = new Recorder(settings);
+            recorder.Run();
         }
         catch { }
         finally
@@ -43,12 +41,12 @@ class Recorder : IDisposable
     {
         _settings = settings;
 
-        if (!string.IsNullOrEmpty(_settings.SetupFilename))
+        if (!string.IsNullOrEmpty(_settings.StudySetupFilename))
         {
-            var config = Configuration.Load(_settings.SetupFilename);
+            var config = Configuration.Load(_settings.StudySetupFilename);
             if (config == null)
             {
-                Console.WriteLine($"The configuration file was not found. A template was created in '{_settings.SetupFilename}', please review and edit as neccesary.");
+                Console.WriteLine($"The configuration file was not found. A template was created in '{_settings.StudySetupFilename}', please review and edit as neccesary.");
                 throw new Exception("Config file not found");
             }
 
@@ -60,7 +58,7 @@ class Recorder : IDisposable
             var session = _config.CreateSession(_participantId);
             if (session == null)
             {
-                Log($"Invalid configuration: check the '{_settings.SetupFilename}' file.");
+                Log($"Invalid configuration: check the '{_settings.StudySetupFilename}' file.");
                 throw new Exception("Invalid configuration");
             }
 
@@ -269,7 +267,7 @@ class Recorder : IDisposable
         {
             var block = session.Blocks[i];
 
-            if (session.IsValidBlock(block))
+            if (Session.IsValidBlock(block))
             {
                 Console.WriteLine();
 
@@ -358,9 +356,9 @@ class Recorder : IDisposable
     readonly Settings _settings;
     readonly Configuration? _config;
     readonly Session? _session;
+    readonly int _participantId;
 
-    int _participantId;
-    string _nbackTaskMessage = "";
+    string _nbackTaskMessage = string.Empty;
 
     GazeTracker? _gazeTracker = null;
 

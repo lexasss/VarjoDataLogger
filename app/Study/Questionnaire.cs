@@ -57,5 +57,3 @@ public class Questionnaire
         else throw new NotImplementedException();
     }
 }
-
-public record class QuestionnaireAnswer(string Question, object answer);

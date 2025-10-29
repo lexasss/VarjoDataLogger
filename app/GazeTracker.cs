@@ -6,19 +6,19 @@ public partial class GazeTracker : IDisposable
 {
     public event EventHandler<EyeHead>? Data;
 
-    public bool IsReady => _isInitilized;
+    public bool IsReady { get; }
 
     public Rotation HeadRotation { get; private set; } = new(0, 0, 0);
 
 
     public GazeTracker()
     {
-        _isInitilized = Interop.Init();
+        IsReady = Interop.Init();
     }
 
     public void Run()
     {
-        if (!_isInitilized || _isRunning)
+        if (!IsReady || _isRunning)
             return;
 
         bool Callback(long timestamp,
@@ -69,11 +69,8 @@ public partial class GazeTracker : IDisposable
 
     const double RadiansToDegrees = 180.0 / Math.PI;
 
-    readonly bool _isInitilized;
-
     bool _isRunning = false;
     Thread? _thread;
-
 
     // Interop
 

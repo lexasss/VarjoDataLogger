@@ -19,8 +19,10 @@ public class NetClient : IDisposable
 
     public NetClient()
     {
-        _client = new TcpClient();
-        _client.NoDelay = true;
+        _client = new TcpClient
+        {
+            NoDelay = true
+        };
     }
 
     public async Task<Exception?> Connect(string ip, int port, int timeout = 3000)

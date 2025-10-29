@@ -11,7 +11,9 @@ public record class NBackTask(int DigitCount, bool IsRandomized)
     }
 }
 
-public class Session  // N-Back Task should contain a setup with this name
+//public record class QuestionnaireAnswer(string QuestionID, object Answer);
+
+public class Session
 {
     public static double[] CttLambdas { get; set; } = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 
@@ -26,7 +28,7 @@ public class Session  // N-Back Task should contain a setup with this name
     public Block[] Blocks { get; }
     public string NBackTaskProfile { get; }
     public int ParticipantID { get; }
-    public List<QuestionnaireAnswer> QuestionnaireAnswers { get; } = [];
+    //public List<QuestionnaireAnswer> QuestionnaireAnswers { get; } = [];
 
     public Session(int participantID, Block[] blocks, string nbackTaskProfile)
     {
@@ -35,7 +37,7 @@ public class Session  // N-Back Task should contain a setup with this name
         NBackTaskProfile = nbackTaskProfile;
     }
 
-    public bool IsValidBlock(Block block)
+    public static bool IsValidBlock(Block block)
     {
         return block.CttLambdaIndex >= 0 && block.CttLambdaIndex < CttLambdas.Length
             && block.NBackTaskIndex >= 0 && block.NBackTaskIndex < NBackTasks.Length;
@@ -49,10 +51,10 @@ public class Session  // N-Back Task should contain a setup with this name
             return;
         }
 
-        var filename = Path.Combine(folder, $"{ConditionsFilename}-{DateTime.Now:u}.txt".ToPath());
+        var filename = Path.Combine(folder, $"blocks-{DateTime.Now:u}.txt".ToPath());
         try
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
             sb.AppendLine($"NBTSetup\t{NBackTaskProfile}");
             sb.AppendLine($"CttIndex\tNbtIndex\tCttLambda\tNbtDigits\tNbtLayoutRandomized");
 
@@ -75,9 +77,4 @@ public class Session  // N-Back Task should contain a setup with this name
             Console.WriteLine($"Failed to save task setup: {ex.Message}");
         }
     }
-
-    // Internal
-
-    readonly static string ConditionsFilename = "conditions";
-
 }
