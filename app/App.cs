@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using VarjoDataLogger.Study;
 
 namespace VarjoDataLogger;
 
@@ -23,9 +24,12 @@ class App
 
         try
         {
-            using var recorder = new Recorder(settings);
-            recorder.Run();
+            using (var recorder = new Recorder(settings))
+            {
+                recorder.Run();
+            }
         }
+        catch { }
         finally
         {
             Debug.Dispose();
@@ -39,8 +43,29 @@ class Recorder : IDisposable
     {
         _settings = settings;
 
-        Task.Delay(500).Wait();
-        AskParticipantId();
+        if (!string.IsNullOrEmpty(_settings.SetupFilename))
+        {
+            var config = Configuration.Load(_settings.SetupFilename);
+            if (config == null)
+            {
+                Console.WriteLine($"The configuration file was not found. A template was created in '{_settings.SetupFilename}', please review and edit as neccesary.");
+                throw new Exception("Config file not found");
+            }
+
+            _config = config;
+
+            Task.Delay(500).Wait();
+            _participantId = GetParticipantId(_config);
+
+            var session = _config.CreateSession(_participantId);
+            if (session == null)
+            {
+                Log($"Invalid configuration: check the '{_settings.SetupFilename}' file.");
+                throw new Exception("Invalid configuration");
+            }
+
+            _session = session;
+        }
 
         _nbtClient.Message += NbtClient_Message;
         var nbackConnTask = _nbtClient.Connect(_settings.NBackTaskIP, NetClient.NBackTaskPort);
@@ -60,198 +85,216 @@ class Recorder : IDisposable
         _handTracker.Data += HandTracker_Data;
         _lmsUdpClient.DataReceived += LmsUdpClient_DataReceived;
 
-        Task[] tasks = [
-            RequestAndGetReply(_cttClient, NET_COMMAND_CTT_GET_LAMBDAS, () => _lambdas.Length > 0),
-            RequestAndGetReply(_nbtClient, NET_COMMAND_NBT_GET_TASKS, () => _nbackTaskDescriptions.Length > 1)
-        ];
-        Task.WaitAll(tasks);
-
-        if (_settings.Pace != null)
+        if (_cttClient.IsConnected)
         {
-            Task.Delay(200).Wait();
-            _nbtClient.Send($"{NET_COMMAND_NTB_LOAD_PROFILE}{_settings.Pace}");
-            Task.Delay(200).Wait();
+            Session.CttLambdas = [];
+            RequestAndGetReply(_cttClient, NET_COMMAND_CTT_GET_LAMBDAS, () => Session.CttLambdas.Length > 0).Wait();
+        }
+
+        if (_nbtClient.IsConnected)
+        {
+            Session.NBackTasks = [];
+            RequestAndGetReply(_nbtClient, NET_COMMAND_NBT_GET_TASKS, () => Session.NBackTasks.Length > 1).Wait();
         }
     }
 
     public void Run()
     {
-        _hasInterrupted = false;
-
-        var tasks = TaskSetup.Load(_settings.SetupFilename, _settings.TaskIndex).GetAllTasks();
-        TaskSetup.SaveTo(_settings.LogFolder, tasks);
-
-        if (_settings.Pace != null)
+        if (_session == null || _config == null)
         {
-            Log($"\nPace: {_settings.Pace}");
+            RunSimple();
+        }
+        else
+        {
+            RunSession(_session);
+        }
+    }
+
+    private void RunSimple(Action? afterFinished = null)
+    {
+        _gazeTracker = new GazeTracker();
+
+        lock (_headsetHandLocation)
+        {
+            HandLocation.Empty.CopyTo(_headsetHandLocation);
+        }
+        lock (_topviewHandLocation)
+        {
+            HandLocation.Empty.CopyTo(_topviewHandLocation);
+        }
+        lock (_nbackTaskMessage)
+        {
+            _nbackTaskMessage = "";
         }
 
-        for (int i = 0; i < tasks.Length; i++)
+        _hasFinished = false;
+
+        if ((_handTracker.IsReady && _gazeTracker.IsReady) || _settings.IsDebugMode)
         {
-            _gazeTracker = new GazeTracker();
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine($"Press ENTER to start");
+            var cmd = Console.ReadLine();
 
-            var task = tasks[i];
+            if (cmd == null || _hasInterrupted)
+            {
+                _hasInterrupted = true;
+                return;
+            }
 
-            if (task.IsValid)
+            _startTime = 0;
+            _gazeSampleCount = 0;
+            _gazeTracker.Data += GazeTracker_Data;
+
+            if (_settings.IsHiddenWhileTracking)
+            {
+                WinUtils.HideConsoleWindow();
+            }
+
+            _headsetHandTotalSampleCount = 0;
+            _headsetHandValidSampleCount = 0;
+            _topviewHandTotalSampleCount = 0;
+            _topviewHandValidSampleCount = 0;
+            _lmStreamerPacketCount = 0;
+
+            _handTracker.Start();
+            _gazeTracker.Run();
+
+            Task.Run(async () =>
+            {
+                _lmsClient.Send(NET_COMMAND_START);
+
+                await Task.Delay(1000);
+
+                _nbtClient.Send(NET_COMMAND_START);
+                _cttClient.Send(NET_COMMAND_START);
+
+                if (!_nbtClient.IsConnected && _settings.IsDebugMode)
+                {
+                    await Task.Delay(10000);
+                    NbtClient_Message(null, "FIN");
+                }
+            });
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            //List<double> durations = [];
+
+            Console.WriteLine("Press Ctrl+C interrupt");
+            Console.TreatControlCAsInput = true;
+            while (!_hasFinished && !_hasInterrupted)
+            {
+                if (!_gazeTracker.IsReady)  // debug mode
+                {
+                    var start = stopwatch.Elapsed;
+                    while ((stopwatch.Elapsed - start).TotalMilliseconds < 5)
+                    {
+                        Thread.Yield();
+                    }
+                    GazeTracker_Data(null, EyeHead.Empty);
+                    //durations.Add((stopwatch.Elapsed - start).TotalMilliseconds);
+                }
+                else
+                {
+                    Thread.Sleep(100);
+                }
+
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(true);
+                    if (key.Key == ConsoleKey.C && key.Modifiers.HasFlag(ConsoleModifiers.Control))
+                    {
+                        _hasInterrupted = true;
+                    }
+                    break;
+                }
+            }
+
+            Console.TreatControlCAsInput = false;
+            Console.WriteLine();
+
+            _nbtClient.Send(NET_COMMAND_STOP);
+            _cttClient.Send(NET_COMMAND_STOP);
+            _lmsClient.Send(NET_COMMAND_STOP);
+
+            _handTracker.Stop();
+
+            _gazeTracker.Data -= GazeTracker_Data;
+
+            if (_settings.IsHiddenWhileTracking)
+            {
+                WinUtils.ShowConsoleWindow();
+            }
+
+            if (!_hasInterrupted)
+            {
+                Thread.Sleep(500);
+
+                _nbtClient.Send(NET_COMMAND_NBT_GET_LAST_LOG);
+                //Console.WriteLine($"Cycle duration: {durations.Average():F4} ms");
+
+                PrintSessionStatistics();
+
+                afterFinished?.Invoke();
+
+                _logger.Save();
+            }
+        }
+        else
+        {
+            Log("Not all devices are ready.");
+            _hasInterrupted = true;
+        }
+
+        _gazeTracker.Dispose();
+        _gazeTracker = null;
+    }
+
+    private void RunSession(Session session)
+    { 
+        session.SaveBlockOrder(_settings.LogFolder);
+
+        if (!string.IsNullOrEmpty(session.NBackTaskProfile))
+        {
+            Console.WriteLine();
+            Log($"NBT profile: {session.NBackTaskProfile}");
+
+            Task.Delay(200).Wait();
+            _nbtClient.Send($"{NET_COMMAND_NBT_LOAD_PROFILE}{session.NBackTaskProfile}");
+            Task.Delay(200).Wait();
+        }
+
+        _hasInterrupted = false;
+
+        for (int i = 0; i < session.Blocks.Length; i++)
+        {
+            var block = session.Blocks[i];
+
+            if (session.IsValidBlock(block))
             {
                 Console.WriteLine();
 
-                _nbtClient.Send($"{NET_COMMAND_NBT_SET_TASK}{task.NBackTaskIndex}");
-                _cttClient.Send($"{NET_COMMAND_CTT_SET_LAMBDA}{task.CttLambdaIndex}");
+                _nbtClient.Send($"{NET_COMMAND_NBT_SET_TASK}{block.NBackTaskIndex}");
+                _cttClient.Send($"{NET_COMMAND_CTT_SET_LAMBDA}{block.CttLambdaIndex}");
 
-                var nbacktaskDescription = _nbackTaskDescriptions[Math.Min(_nbackTaskDescriptions.Length - 1, task.NBackTaskIndex)];
-                var lambda = task.CttLambdaIndex < _lambdas.Length ? _lambdas[task.CttLambdaIndex] : task.CttLambdaIndex;
-                var info = $"Task {i + 1}/{tasks.Length}: CTT = {lambda}, NBack = {nbacktaskDescription} [{task.NBackTaskIndex}]";
+                var nbacktaskDescription = block.NBackTaskIndex < Session.NBackTasks.Length
+                    ? Session.NBackTasks[block.NBackTaskIndex].AsDescription()
+                    : "[unknown]";
+                var lambda = block.CttLambdaIndex < Session.CttLambdas.Length
+                    ? Session.CttLambdas[block.CttLambdaIndex]
+                    : block.CttLambdaIndex;
+                var info = $"Block {i + 1}/{session.Blocks.Length}: CTT = {lambda}, NBack = {nbacktaskDescription}";
                 Log(info);
             }
 
-            lock (_headsetHandLocation)
+            RunSimple(() =>
             {
-                HandLocation.Empty.CopyTo(_headsetHandLocation);
-            }
-            lock (_topviewHandLocation)
-            {
-                HandLocation.Empty.CopyTo(_topviewHandLocation);
-            }
-            lock (_nbackTaskMessage)
-            {
-                _nbackTaskMessage = "";
-            }
-
-            _hasFinished = false;
-
-            if ((_handTracker.IsReady && _gazeTracker.IsReady) || _settings.IsDebugMode)
-            {
-                Console.WriteLine();
-                Console.WriteLine();
-                Console.WriteLine($"Press ENTER to start");
-                var cmd = Console.ReadLine();
-
-                if (cmd == null || _hasInterrupted)
+                foreach (var question in _config?.Questionnaires ?? [])
                 {
-                    _hasInterrupted = true;
-                    break;
+                    string answer = GetRating(question);
+                    _logger.Add("Question", question.ID, answer);
+                    App.Debug.WriteLine("QUESTION", $"{question.ID}\t{answer}");
                 }
-
-                _startTime = 0;
-                _gazeSampleCount = 0;
-                _gazeTracker.Data += GazeTracker_Data;
-
-                if (_settings.IsHiddenWhileTracking)
-                {
-                    WinUtils.HideConsoleWindow();
-                }
-
-                _headsetHandTotalSampleCount = 0;
-                _headsetHandValidSampleCount = 0;
-                _topviewHandTotalSampleCount = 0;
-                _topviewHandValidSampleCount = 0;
-                _lmStreamerPacketCount = 0;
-
-                _handTracker.Start();
-                _gazeTracker.Run();
-
-                Task.Run(async () =>
-                {
-                    if (_lmsClient.IsConnected)
-                    {
-                        _lmsClient.Send(NET_COMMAND_START);
-                    }
-
-                    await Task.Delay(1000);
-
-                    if (_nbtClient.IsConnected)
-                    {
-                        _nbtClient.Send(NET_COMMAND_START);
-                    }
-                    if (_cttClient.IsConnected)
-                    {
-                        _cttClient.Send(NET_COMMAND_START);
-                    }
-                });
-
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                //List<double> durations = [];
-
-                Console.WriteLine("Press Ctrl+C interrupt");
-                Console.TreatControlCAsInput = true;
-                while (!_hasFinished && !_hasInterrupted)
-                {
-                    if (!_gazeTracker.IsReady)  // debug mode
-                    {
-                        var start = stopwatch.Elapsed;
-                        while ((stopwatch.Elapsed - start).TotalMilliseconds < 5)
-                        {
-                            Thread.Yield();
-                        }
-                        GazeTracker_Data(null, EyeHead.Empty);
-                        //durations.Add((stopwatch.Elapsed - start).TotalMilliseconds);
-                    }
-                    else
-                    {
-                        Thread.Sleep(100);
-                    }
-
-                    if (Console.KeyAvailable)
-                    {
-                        var key = Console.ReadKey(true);
-                        if (key.Key == ConsoleKey.C && key.Modifiers.HasFlag(ConsoleModifiers.Control))
-                        {
-                            _hasInterrupted = true;
-                        }
-                        break;
-                    }
-                }
-
-                Console.TreatControlCAsInput = false;
-                Console.WriteLine();
-
-                if (_nbtClient.IsConnected)
-                {
-                    _nbtClient.Send(NET_COMMAND_STOP);
-                }
-                if (_cttClient.IsConnected)
-                {
-                    _cttClient.Send(NET_COMMAND_STOP);
-                }
-                if (_lmsClient.IsConnected)
-                {
-                    _lmsClient.Send(NET_COMMAND_STOP);
-                }
-
-                _handTracker.Stop();
-
-                _gazeTracker.Data -= GazeTracker_Data;
-
-                if (_settings.IsHiddenWhileTracking)
-                {
-                    WinUtils.ShowConsoleWindow();
-                }
-
-                if (!_hasInterrupted)
-                {
-                    Thread.Sleep(500);
-
-                    _nbtClient.Send(NET_COMMAND_NBT_GET_LAST_LOG);
-                    //Console.WriteLine($"Cycle duration: {durations.Average():F4} ms");
-
-                    PrintSessionStatistics();
-                    int rating = GetRating();
-
-                    _logger.Add("Rating", rating);
-                    _logger.Save();
-
-                    App.Debug.WriteLine("RATING", $"{rating}");
-                }
-            }
-            else
-            {
-                Log("Not all devices are ready.");
-                _hasInterrupted = true;
-            }
-
-            _gazeTracker.Dispose();
-            _gazeTracker = null;
+            });
 
             if (_hasInterrupted)
                 break;
@@ -259,7 +302,11 @@ class Recorder : IDisposable
 
         if (!_hasInterrupted)
         {
-            LogFileManager.Collect(_settings.ParticipantID, _settings.Pace);
+            Console.WriteLine();
+            Console.WriteLine("Please stop all recordings and press ENTER");
+            Console.ReadLine();
+
+            LogFileManager.Collect(session.ParticipantID, Configuration.GetSessionId(_participantId), session.NBackTaskProfile);
         }
         else
         {
@@ -292,7 +339,7 @@ class Recorder : IDisposable
     readonly string NET_COMMAND_NBT_GET_TASKS = "tasks";
     readonly string NET_COMMAND_NBT_SET_TASK = "task";
     readonly string NET_COMMAND_NBT_GET_LAST_LOG = "getlog";
-    readonly string NET_COMMAND_NTB_LOAD_PROFILE = "profile";
+    readonly string NET_COMMAND_NBT_LOAD_PROFILE = "profile";
     readonly string NET_COMMAND_CTT_GET_LAMBDAS = "lambdas";
     readonly string NET_COMMAND_CTT_SET_LAMBDA = "lambda";
     readonly string NET_COMMAND_START = "start";
@@ -307,11 +354,13 @@ class Recorder : IDisposable
     readonly NetClient _lmsClient = new();
     readonly UdpReceiver _lmsUdpClient = new();
     readonly HandTracker _handTracker = new();
-    readonly Settings _settings;
 
+    readonly Settings _settings;
+    readonly Configuration? _config;
+    readonly Session? _session;
+
+    int _participantId;
     string _nbackTaskMessage = "";
-    string[] _nbackTaskDescriptions = ["Unknown"];
-    double[] _lambdas = [];
 
     GazeTracker? _gazeTracker = null;
 
@@ -351,28 +400,13 @@ class Recorder : IDisposable
         Log(info);
     }
 
-    private static int GetRating()
+    private static string GetRating(Questionnaire question)
     {
-        Console.WriteLine("Overall, how difficult or easy did you find this task?");
+        Console.WriteLine(question.Text); // "Overall, how difficult or easy did you find this task?"
         Console.WriteLine();
-        Console.WriteLine("Very difficult                                        Very easy");
-        Console.WriteLine("--- 1 ------ 2 ------ 3 ------ 4 ------ 5 ------ 6 ------ 7 ---");
-        Console.WriteLine();
+        Console.WriteLine(string.Join('\n', question.GetScaleText()));
 
-        int rating;
-        for (; ; )
-        {
-            var input = Console.ReadLine();
-            if (!int.TryParse(input, out rating) || rating < 1 || rating > 7)
-            {
-                Console.WriteLine("Please enter a number between 1 and 7.");
-            }
-            else
-            {
-                break;
-            }
-        }
-        return rating;
+        return question.GetAnswer();
     }
 
     private void PrintSessionStatistics()
@@ -417,8 +451,10 @@ class Recorder : IDisposable
         }
     }
 
-    private void AskParticipantId()
+    private static int GetParticipantId(Configuration config)
     {
+        int result = 0;
+
         var lastID = LogFileManager.LastParticipantId;
         if (lastID > 0)
         {
@@ -435,18 +471,17 @@ class Recorder : IDisposable
             }
             else if (string.IsNullOrWhiteSpace(input))
             {
-                _settings.ParticipantID = 0;
                 break;
             }
             else if (int.TryParse(input, out int pid) && pid > 0 && pid < 100)
             {
-                if (LogFileManager.IsParticipantDataFull(pid))
+                if (LogFileManager.IsParticipantDataFull(pid, config))
                 {
                     Console.Write("This participant has all data collected. Enter another ID: ");
                 }
                 else
                 {
-                    _settings.ParticipantID = pid;
+                    result = pid;
                     break;
                 }
             }
@@ -456,7 +491,9 @@ class Recorder : IDisposable
             }
         }
 
-        App.Debug.WriteLine("INFO", $"Participant ID: {_settings.ParticipantID}");
+        App.Debug.WriteLine("INFO", $"Participant ID: {result}");
+
+        return result;
     }
 
     // Event handlers
@@ -466,14 +503,14 @@ class Recorder : IDisposable
         if (e.StartsWith("LMB") && e.Length > 3)
         {
             var items = new List<double>();
-            foreach (var item in e.Substring(3).Split(';'))
+            foreach (var item in e[3..].Split(';'))
             {
                 if (double.TryParse(item, out double lambda))
                 {
                     items.Add(lambda);
                 }
             }
-            _lambdas = items.ToArray();
+            Session.CttLambdas = items.ToArray();
         }
     }
 
@@ -485,24 +522,22 @@ class Recorder : IDisposable
         }
         else if (e.StartsWith("TSK") && e.Length > 3)
         {
-            var items = new List<string>();
-            foreach (var item in e.Substring(3).Split(';'))
+            var items = new List<NBackTask>();
+            foreach (var item in e[3..].Split(';'))
             {
                 var p = item.Split(',');
-                if (p.Length >= 2)
+                if (p.Length >= 2 && int.TryParse(p[0], out int count))
                 {
-                    var order = p[1] == "Ordered" ? "fixed" : "randomized";
-                    items.Add($"{p[0]} {order} numbers");
+                    items.Add(new NBackTask(count, p[1] != "Ordered"));
                 }
             }
-            _nbackTaskDescriptions = items.ToArray();
+            Session.NBackTasks = items.ToArray();
         }
         else if (e.StartsWith("LOG"))
         {
             if (e.Length > 3)
             {
-                var payload = e.Substring(3);
-                LogFileManager.SaveTemporaryLogFile($"nbt-{DateTime.Now:u}.txt".ToPath(), payload);
+                LogFileManager.SaveTemporaryLogFile($"nbt-{DateTime.Now:u}.txt".ToPath(), e[3..]);
             }
             e = e[..3];
         }

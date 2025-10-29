@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using VarjoDataLogger.Study;
 
 namespace VarjoDataLogger;
 
@@ -21,22 +22,25 @@ internal static class LogFileManager
     public static string GetParticipantFolder(int participantId) =>
         Path.Combine(_destinationFolder, $"P{participantId:00}");
 
-    public static bool IsParticipantDataFull(int participantId)
+    public static bool IsParticipantDataFull(int participantId, Configuration config)
     {
-        var basepath = Path.Combine(_destinationFolder, $"P{participantId:00}");
-        return Enum.GetNames(typeof(Pace)).All(pace =>
-            Directory.Exists(Path.Combine(basepath, pace.ToLower()))
-        );
+        var participantFolder = Path.Combine(_destinationFolder, $"P{participantId:00}");
+        if (!Directory.Exists(participantFolder))
+            return false;
+
+        var folders = Directory.EnumerateDirectories(participantFolder);
+        var sessionSetsAndNbtProfiles = config.Sets[participantId % config.Sets.Length];
+        return folders.Count() == sessionSetsAndNbtProfiles.Length;
     }
 
-    public static void Collect(int participantId, Pace? pace)
+    public static void Collect(int participantId, int sessionId, string nbtProfile)
     {
-        if (participantId <= 0 || pace == null)
+        if (participantId <= 0 || string.IsNullOrEmpty(nbtProfile))
         {
             return;
         }
 
-        var folder = Path.Combine(GetParticipantFolder(participantId), pace.ToString()?.ToLower() ?? "");
+        var folder = Path.Combine(GetParticipantFolder(participantId), $"{sessionId} - {nbtProfile.ToLower()}");
         Directory.CreateDirectory(folder);
 
         foreach (var (path, fileMask) in _fileMasks)
