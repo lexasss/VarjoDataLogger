@@ -1,13 +1,13 @@
 ﻿namespace VarjoDataLogger.Study;
 
-public enum QuestionnaireType
+public enum QuestionType
 {
     Scale,
 }
 
-public class Questionnaire
+public class Question
 {
-    public QuestionnaireType Type { get; set; } = QuestionnaireType.Scale;
+    public QuestionType Type { get; set; } = QuestionType.Scale;
     public string Text { get; set; } = string.Empty;
     public string ID { get; set; } = string.Empty;
     public int ScaleMin { get; set; } = 1;
@@ -22,7 +22,7 @@ public class Questionnaire
             Text,
         };
 
-        if (Type == QuestionnaireType.Scale)
+        if (Type == QuestionType.Scale)
         {
             var scale = "";
             for (int i = ScaleMin; i <= ScaleMax; i++)
@@ -42,7 +42,7 @@ public class Questionnaire
 
     public string ReadAnswer()
     {
-        if (Type == QuestionnaireType.Scale)
+        if (Type == QuestionType.Scale)
         {
             int rating;
             for (; ; )

@@ -41,7 +41,7 @@ public class SessionSetup
 
 public class Configuration
 {
-    public Questionnaire[] Questionnaires { get; set; } = [];
+    public Question[] Questions { get; set; } = [];
     public SessionSetup[] SessionSetups { get; set; } = [];
     public string[] NbtProfiles { get; set; } = [];
     public SessionSetupAndNbtProfile[][] Sets { get; set; } = [];
@@ -74,7 +74,7 @@ public class Configuration
 
         var sessionSetup = SessionSetups[sessionSetAndNbtProfile.SessionSetupIndex];
         var nbtProfile = NbtProfiles[sessionSetAndNbtProfile.NbtProfileIndex];
-        return new Session(participantId, sessionSetup.CreateBlocks(), nbtProfile);
+        return new Session(participantId, sessionSetup.CreateBlocks(), nbtProfile, Questions);
     }
 
     public static Configuration? Load(string? filename)
@@ -143,10 +143,10 @@ public class Configuration
         if (NbtProfiles.Length == 0)
             NbtProfiles = ["system", "self"];
 
-        if (Questionnaires.Length == 0)
-            Questionnaires = [
-                new Questionnaire() {
-                    Type = QuestionnaireType.Scale,
+        if (Questions.Length == 0)
+            Questions = [
+                new Question() {
+                    Type = QuestionType.Scale,
                     Text = "Overall, how difficult or easy did you find this task?",
                     ID = "RATING",
                     ScaleMin = 1,

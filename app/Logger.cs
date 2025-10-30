@@ -24,27 +24,23 @@ internal class Logger
         }
     }
 
-    public string? Save()
+    public string? Save(Settings settings)
     {
         if (_records.Count == 0)
             return null;
 
-        var folderName = string.Empty;
-        if (Settings.TryGetInstance(out Settings settings, out _))
-        {
-            folderName = settings.LogFolder;
-        }
+        var folder = settings.LogFolder;
 
-        if (string.IsNullOrEmpty(folderName))
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
         {
-            folderName = SelectLogFolder();
-            if (folderName != null)
-                settings.LogFolder = folderName;
+            folder = SelectLogFolder();
+            if (folder != null)
+                settings.LogFolder = folder;
             else
                 return null;
         }
 
-        var filename = Path.Join(folderName, $"vdl-{DateTime.Now:u}.txt".ToPath());
+        var filename = Path.Join(folder, $"vdl-{DateTime.Now:u}.txt".ToPath());
 
         try
         {
@@ -79,9 +75,10 @@ internal class Logger
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             ForceFileSystem = false,
             Title = $"Select a folder to store {App.Name} log files",
+            OkButtonLabel = "Select",
         };
 
-        if (ofd.ShowDialog() == false || string.IsNullOrEmpty(ofd.ResultPath))
+        if (ofd.ShowDialog() != false || string.IsNullOrEmpty(ofd.ResultPath))
         {
             return ofd.ResultPath;
         }

@@ -154,7 +154,7 @@ Note that application determines which set to utilize by checking the participan
 
 As there are 4 sets defined in this example, then participant with ID = 6 will be completing same tasks in the same order.
 
-### Questionnaires
+### Questions
 
 This section contains a list of questions asked after each block of trials. Each question is describe as in the following example:
 

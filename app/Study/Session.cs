@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.ObjectModel;
+using System.Text;
 
 namespace VarjoDataLogger.Study;
 
@@ -11,7 +12,16 @@ public record class NbtLayout(int DigitCount, bool IsRandomized)
     }
 }
 
-//public record class QuestionnaireAnswer(string QuestionID, object Answer);
+public class QuestionWithAnswer
+{
+    public Question Question { get; }
+    public string? Answer { get; set; }
+
+    public QuestionWithAnswer(Question question)
+    {
+        Question = question;
+    }
+}
 
 public class Session
 {
@@ -28,13 +38,21 @@ public class Session
     public Block[] Blocks { get; }
     public string NbtProfile { get; }
     public int ParticipantID { get; }
-    //public List<QuestionnaireAnswer> QuestionnaireAnswers { get; } = [];
+    public ReadOnlyDictionary<Block, QuestionWithAnswer[]> QuestionsAndAnswers { get; }
 
-    public Session(int participantID, Block[] blocks, string nbtProfile)
+    public Session(int participantID, Block[] blocks, string nbtProfile, Question[] questions)
     {
         ParticipantID = participantID;
         Blocks = blocks;
         NbtProfile = nbtProfile;
+
+        var blockQuestions = new Dictionary<Block, QuestionWithAnswer[]>();
+        foreach (var block in blocks)
+            blockQuestions.Add(block, questions.Select(q => new QuestionWithAnswer(q)).ToArray());
+
+        QuestionsAndAnswers = new(blockQuestions);
+
+        _questionIds = questions.Select(q => q.ID).ToArray();
     }
 
     public static bool IsValidBlock(Block block)
@@ -43,19 +61,30 @@ public class Session
             && block.NbtLayoutIndex >= 0 && block.NbtLayoutIndex < NbtLayouts.Length;
     }
 
-    public void SaveBlockOrder(string folder)
+    public void SaveConditionsAndAnswers(Settings settings)
     {
+        Console.WriteLine();
+
+        var folder = settings.LogFolder;
+
         if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
         {
-            Console.WriteLine("Invalid folder for saving session blocks.");
-            return;
+            folder = Logger.SelectLogFolder();
+            if (folder != null)
+                settings.LogFolder = folder;
+            else
+            {
+                Console.WriteLine("Session block parameters were NOT saved.");
+                return;
+            }
         }
 
         var filename = Path.Combine(folder, $"blocks-{DateTime.Now:u}.txt".ToPath());
         try
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"CttIndex\tCttLambda\tNbtIndex\tNbtDigits\tNbtLayoutRandomized\tNbtProfile");
+            sb.AppendLine($"CttIndex\tCttLambda\tNbtIndex\tNbtDigits\tNbtLayoutRandomized\tNbtProfile\t" 
+                + string.Join('\t', _questionIds));
 
             foreach (var block in Blocks)
             {
@@ -65,7 +94,9 @@ public class Session
                 var (digits, layout) = block.NbtLayoutIndex >= 0 && block.NbtLayoutIndex < NbtLayouts.Length
                     ? NbtLayouts[block.NbtLayoutIndex]
                     : new(-1, false);
-                sb.AppendLine($"{block.CttLambdaIndex}\t{lambda}\t{block.NbtLayoutIndex}\t{digits}\t{layout}\t{NbtProfile}");
+                var qas = QuestionsAndAnswers[block];
+                var qasStr = string.Join('\t', qas.Select(qa => qa.Answer));
+                sb.AppendLine($"{block.CttLambdaIndex}\t{lambda}\t{block.NbtLayoutIndex}\t{digits}\t{layout}\t{NbtProfile}\t{qasStr}");
             }
 
             File.WriteAllText(filename, sb.ToString());
@@ -76,4 +107,8 @@ public class Session
             Console.WriteLine($"Failed to save task setup: {ex.Message}");
         }
     }
+
+    // Internal
+
+    readonly string[] _questionIds;
 }
