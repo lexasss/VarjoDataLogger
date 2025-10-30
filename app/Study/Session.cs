@@ -2,7 +2,7 @@
 
 namespace VarjoDataLogger.Study;
 
-public record class NBackTask(int DigitCount, bool IsRandomized)
+public record class NbtLayout(int DigitCount, bool IsRandomized)
 {
     public string AsDescription()
     {
@@ -16,8 +16,8 @@ public record class NBackTask(int DigitCount, bool IsRandomized)
 public class Session
 {
     public static double[] CttLambdas { get; set; } = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-
-    public static NBackTask[] NBackTasks { get; set; } = [
+    public static string[] NbtProfiles { get; set; } = ["system"];
+    public static NbtLayout[] NbtLayouts { get; set; } = [
         new(2, false),
         new(4, false),
         new(8, false),
@@ -26,21 +26,21 @@ public class Session
     ];
 
     public Block[] Blocks { get; }
-    public string NBackTaskProfile { get; }
+    public string NbtProfile { get; }
     public int ParticipantID { get; }
     //public List<QuestionnaireAnswer> QuestionnaireAnswers { get; } = [];
 
-    public Session(int participantID, Block[] blocks, string nbackTaskProfile)
+    public Session(int participantID, Block[] blocks, string nbtProfile)
     {
         ParticipantID = participantID;
         Blocks = blocks;
-        NBackTaskProfile = nbackTaskProfile;
+        NbtProfile = nbtProfile;
     }
 
     public static bool IsValidBlock(Block block)
     {
         return block.CttLambdaIndex >= 0 && block.CttLambdaIndex < CttLambdas.Length
-            && block.NBackTaskIndex >= 0 && block.NBackTaskIndex < NBackTasks.Length;
+            && block.NbtLayoutIndex >= 0 && block.NbtLayoutIndex < NbtLayouts.Length;
     }
 
     public void SaveBlockOrder(string folder)
@@ -55,18 +55,17 @@ public class Session
         try
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"NBTSetup\t{NBackTaskProfile}");
-            sb.AppendLine($"CttIndex\tNbtIndex\tCttLambda\tNbtDigits\tNbtLayoutRandomized");
+            sb.AppendLine($"CttIndex\tCttLambda\tNbtIndex\tNbtDigits\tNbtLayoutRandomized\tNbtProfile");
 
             foreach (var block in Blocks)
             {
                 var lambda = block.CttLambdaIndex >= 0 && block.CttLambdaIndex < CttLambdas.Length
                     ? CttLambdas[block.CttLambdaIndex]
                     : -1;
-                var (digits, layout) = block.NBackTaskIndex >= 0 && block.NBackTaskIndex < NBackTasks.Length
-                    ? NBackTasks[block.NBackTaskIndex]
+                var (digits, layout) = block.NbtLayoutIndex >= 0 && block.NbtLayoutIndex < NbtLayouts.Length
+                    ? NbtLayouts[block.NbtLayoutIndex]
                     : new(-1, false);
-                sb.AppendLine($"{block.CttLambdaIndex}\t{block.NBackTaskIndex}\t{lambda}\t{digits}\t{layout}");
+                sb.AppendLine($"{block.CttLambdaIndex}\t{lambda}\t{block.NbtLayoutIndex}\t{digits}\t{layout}\t{NbtProfile}");
             }
 
             File.WriteAllText(filename, sb.ToString());

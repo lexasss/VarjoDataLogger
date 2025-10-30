@@ -27,7 +27,10 @@ class App
             using var recorder = new Recorder(settings);
             recorder.Run();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
         finally
         {
             Debug.Dispose();
@@ -46,8 +49,7 @@ class Recorder : IDisposable
             var config = Configuration.Load(_settings.StudySetupFilename);
             if (config == null)
             {
-                Console.WriteLine($"The configuration file was not found. A template was created in '{_settings.StudySetupFilename}', please review and edit as neccesary.");
-                throw new Exception("Config file not found");
+                throw new Exception($"The configuration file was not found. A template was created in '{_settings.StudySetupFilename}', please review and edit as neccesary.");
             }
 
             _config = config;
@@ -91,8 +93,15 @@ class Recorder : IDisposable
 
         if (_nbtClient.IsConnected)
         {
-            Session.NBackTasks = [];
-            RequestAndGetReply(_nbtClient, NET_COMMAND_NBT_GET_TASKS, () => Session.NBackTasks.Length > 1).Wait();
+            Session.NbtLayouts = [];
+            RequestAndGetReply(_nbtClient, NET_COMMAND_NBT_GET_TASKS, () => Session.NbtLayouts.Length > 1).Wait();
+            
+            Task.Delay(300).Wait();
+            Session.NbtProfiles = [];
+            RequestAndGetReply(_nbtClient, NET_COMMAND_NBT_GET_PROFILES, () => Session.NbtProfiles.Length > 1).Wait();
+
+            if (_session != null && !Session.NbtProfiles.Contains(_session.NbtProfile))
+                throw new Exception($"NBackTask application has no `{_session.NbtProfile}` profile defined.");
         }
     }
 
@@ -108,6 +117,66 @@ class Recorder : IDisposable
         }
     }
 
+    public void Dispose()
+    {
+        _handTracker.Dispose();
+        
+        _nbtClient.Dispose();
+        _cttClient.Dispose();
+        _lmsClient.Dispose();
+
+        try
+        {
+            _lmsUdpClient.DataReceived -= LmsUdpClient_DataReceived;
+        }
+        catch { }
+        _lmsUdpClient.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+
+    // Internal
+
+    readonly string NET_COMMAND_NBT_GET_PROFILES = "profiles";
+    readonly string NET_COMMAND_NBT_GET_TASKS = "tasks";
+    readonly string NET_COMMAND_NBT_SET_TASK = "task";
+    readonly string NET_COMMAND_NBT_GET_LAST_LOG = "getlog";
+    readonly string NET_COMMAND_NBT_LOAD_PROFILE = "profile";
+    readonly string NET_COMMAND_CTT_GET_LAMBDAS = "lambdas";
+    readonly string NET_COMMAND_CTT_SET_LAMBDA = "lambda";
+    readonly string NET_COMMAND_START = "start";
+    readonly string NET_COMMAND_STOP = "stop";
+
+    readonly HandLocation _headsetHandLocation = new();
+    readonly HandLocation _topviewHandLocation = new();
+    
+    readonly Logger _logger = Logger.Instance;
+    readonly NetClient _nbtClient = new();
+    readonly NetClient _cttClient = new();
+    readonly NetClient _lmsClient = new();
+    readonly UdpReceiver _lmsUdpClient = new();
+    readonly HandTracker _handTracker = new();
+
+    readonly Settings _settings;
+    readonly Configuration? _config;
+    readonly Session? _session;
+    readonly int _participantId;
+
+    string _nbtMessage = string.Empty;
+
+    GazeTracker? _gazeTracker = null;
+
+    bool _hasFinished = false;
+    bool _hasInterrupted = false;
+
+    long _startTime = 0;
+    int _gazeSampleCount = 0;
+    int _headsetHandTotalSampleCount = 0;
+    int _headsetHandValidSampleCount = 0;
+    int _topviewHandTotalSampleCount = 0;
+    int _topviewHandValidSampleCount = 0;
+    int _lmStreamerPacketCount = 0;
+
     private void RunSimple(Action? afterFinished = null)
     {
         _gazeTracker = new GazeTracker();
@@ -120,9 +189,9 @@ class Recorder : IDisposable
         {
             HandLocation.Empty.CopyTo(_topviewHandLocation);
         }
-        lock (_nbackTaskMessage)
+        lock (_nbtMessage)
         {
-            _nbackTaskMessage = "";
+            _nbtMessage = "";
         }
 
         _hasFinished = false;
@@ -248,16 +317,16 @@ class Recorder : IDisposable
     }
 
     private void RunSession(Session session)
-    { 
+    {
         session.SaveBlockOrder(_settings.LogFolder);
 
-        if (!string.IsNullOrEmpty(session.NBackTaskProfile))
+        if (!string.IsNullOrEmpty(session.NbtProfile))
         {
             Console.WriteLine();
-            Log($"NBT profile: {session.NBackTaskProfile}");
+            Log($"NBT profile: {session.NbtProfile}");
 
             Task.Delay(200).Wait();
-            _nbtClient.Send($"{NET_COMMAND_NBT_LOAD_PROFILE}{session.NBackTaskProfile}");
+            _nbtClient.Send($"{NET_COMMAND_NBT_LOAD_PROFILE}{session.NbtProfile}");
             Task.Delay(200).Wait();
         }
 
@@ -271,16 +340,16 @@ class Recorder : IDisposable
             {
                 Console.WriteLine();
 
-                _nbtClient.Send($"{NET_COMMAND_NBT_SET_TASK}{block.NBackTaskIndex}");
+                _nbtClient.Send($"{NET_COMMAND_NBT_SET_TASK}{block.NbtLayoutIndex}");
                 _cttClient.Send($"{NET_COMMAND_CTT_SET_LAMBDA}{block.CttLambdaIndex}");
 
-                var nbacktaskDescription = block.NBackTaskIndex < Session.NBackTasks.Length
-                    ? Session.NBackTasks[block.NBackTaskIndex].AsDescription()
+                var nbtLayoutDescription = block.NbtLayoutIndex < Session.NbtLayouts.Length
+                    ? Session.NbtLayouts[block.NbtLayoutIndex].AsDescription()
                     : "[unknown]";
                 var lambda = block.CttLambdaIndex < Session.CttLambdas.Length
                     ? Session.CttLambdas[block.CttLambdaIndex]
                     : block.CttLambdaIndex;
-                var info = $"Block {i + 1}/{session.Blocks.Length}: CTT = {lambda}, NBack = {nbacktaskDescription}";
+                var info = $"Block {i + 1}/{session.Blocks.Length}: CTT = {lambda}, NBack = {nbtLayoutDescription}";
                 Log(info);
             }
 
@@ -288,7 +357,8 @@ class Recorder : IDisposable
             {
                 foreach (var question in _config?.Questionnaires ?? [])
                 {
-                    string answer = GetRating(question);
+                    Console.WriteLine(string.Join('\n', question.GetQuestionTextLines()));
+                    string answer = question.ReadAnswer();
                     _logger.Add("Question", question.ID, answer);
                     App.Debug.WriteLine("QUESTION", $"{question.ID}\t{answer}");
                 }
@@ -304,7 +374,7 @@ class Recorder : IDisposable
             Console.WriteLine("Please stop all recordings and press ENTER");
             Console.ReadLine();
 
-            LogFileManager.Collect(session.ParticipantID, Configuration.GetSessionId(_participantId), session.NBackTaskProfile);
+            LogFileManager.CollectFiles(session.ParticipantID, Configuration.GetSessionId(_participantId), session.NbtProfile);
         }
         else
         {
@@ -313,65 +383,6 @@ class Recorder : IDisposable
 
         Console.WriteLine("Exiting....");
     }
-
-    public void Dispose()
-    {
-        _handTracker.Dispose();
-        
-        _nbtClient.Dispose();
-        _cttClient.Dispose();
-        _lmsClient.Dispose();
-
-        try
-        {
-            _lmsUdpClient.DataReceived -= LmsUdpClient_DataReceived;
-        }
-        catch { }
-        _lmsUdpClient.Dispose();
-
-        GC.SuppressFinalize(this);
-    }
-
-    // Internal
-
-    readonly string NET_COMMAND_NBT_GET_TASKS = "tasks";
-    readonly string NET_COMMAND_NBT_SET_TASK = "task";
-    readonly string NET_COMMAND_NBT_GET_LAST_LOG = "getlog";
-    readonly string NET_COMMAND_NBT_LOAD_PROFILE = "profile";
-    readonly string NET_COMMAND_CTT_GET_LAMBDAS = "lambdas";
-    readonly string NET_COMMAND_CTT_SET_LAMBDA = "lambda";
-    readonly string NET_COMMAND_START = "start";
-    readonly string NET_COMMAND_STOP = "stop";
-
-    readonly HandLocation _headsetHandLocation = new();
-    readonly HandLocation _topviewHandLocation = new();
-    
-    readonly Logger _logger = Logger.Instance;
-    readonly NetClient _nbtClient = new();
-    readonly NetClient _cttClient = new();
-    readonly NetClient _lmsClient = new();
-    readonly UdpReceiver _lmsUdpClient = new();
-    readonly HandTracker _handTracker = new();
-
-    readonly Settings _settings;
-    readonly Configuration? _config;
-    readonly Session? _session;
-    readonly int _participantId;
-
-    string _nbackTaskMessage = string.Empty;
-
-    GazeTracker? _gazeTracker = null;
-
-    bool _hasFinished = false;
-    bool _hasInterrupted = false;
-
-    long _startTime = 0;
-    int _gazeSampleCount = 0;
-    int _headsetHandTotalSampleCount = 0;
-    int _headsetHandValidSampleCount = 0;
-    int _topviewHandTotalSampleCount = 0;
-    int _topviewHandValidSampleCount = 0;
-    int _lmStreamerPacketCount = 0;
 
     private static void Log(string info)
     {
@@ -396,15 +407,6 @@ class Recorder : IDisposable
         }
 
         Log(info);
-    }
-
-    private static string GetRating(Questionnaire question)
-    {
-        Console.WriteLine(question.Text); // "Overall, how difficult or easy did you find this task?"
-        Console.WriteLine();
-        Console.WriteLine(string.Join('\n', question.GetScaleText()));
-
-        return question.GetAnswer();
     }
 
     private void PrintSessionStatistics()
@@ -518,18 +520,27 @@ class Recorder : IDisposable
         {
             _hasFinished = true;
         }
+        else if (e.StartsWith("PRO") && e.Length > 3)
+        {
+            var items = new List<string>();
+            foreach (var item in e[4..].Split(';'))
+            {
+                items.Add(item);
+            }
+            Session.NbtProfiles = items.ToArray();
+        }
         else if (e.StartsWith("TSK") && e.Length > 3)
         {
-            var items = new List<NBackTask>();
-            foreach (var item in e[3..].Split(';'))
+            var items = new List<NbtLayout>();
+            foreach (var item in e[4..].Split(';'))
             {
                 var p = item.Split(',');
                 if (p.Length >= 2 && int.TryParse(p[0], out int count))
                 {
-                    items.Add(new NBackTask(count, p[1] != "Ordered"));
+                    items.Add(new NbtLayout(count, p[1] != "Ordered"));
                 }
             }
-            Session.NBackTasks = items.ToArray();
+            Session.NbtLayouts = items.ToArray();
         }
         else if (e.StartsWith("LOG"))
         {
@@ -540,9 +551,9 @@ class Recorder : IDisposable
             e = e[..3];
         }
 
-        lock (_nbackTaskMessage)
+        lock (_nbtMessage)
         {
-            _nbackTaskMessage = e;
+            _nbtMessage = e;
         }
     }
 
@@ -571,10 +582,10 @@ class Recorder : IDisposable
         _gazeSampleCount++;
 
         string eventInfo;
-        lock (_nbackTaskMessage)
+        lock (_nbtMessage)
         {
-            eventInfo = _nbackTaskMessage;
-            _nbackTaskMessage = "";
+            eventInfo = _nbtMessage;
+            _nbtMessage = "";
         }
 
         if (_startTime == 0)

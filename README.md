@@ -17,12 +17,11 @@ Note that VarjoTrackerLib can be compiled from https://github.com/lexasss/VarjoT
 ```
   -n, --nbtip      IP address of the PC running N-Back task application. Default is '127.0.0.1'.
   -c, --cttip      IP address of the PC running CTT application. Default is '127.0.0.1'.
-  -m, --lmsip      [ >= v0.4 ] IP address of the PC running Leap Motion Streamer application. Default is '127.0.0.1'.
+  -m, --lmsip      IP address of the PC running Leap Motion Streamer application. Default is '127.0.0.1'.
   -l, --log        Log file folder, must be without spaces. Default is 'C:/Users/<USERNAME>/Documents'.
   -o, --offset     Leap Motion ZYX offsets (comma-separated, no spaces). Default is '-6,15,0'.
   -h, --hide       Forces the console window to be hidden (minimized) while the tracking is on.
-  -s, --setup      JSON setup file with a list of task configurations. Default is 'no value'.
-  -t, --task       [ <= v0.5 ] Task ID to be loaded from th esetup file. Default is '-1' (task ID is computed from the participant ID, see below).
+  -s, --setup      JSON setup file with study configuration. Default is 'no value'.
   -v, --verbose    Debug info is printed in the verbose mode.
   -d, --debug      Sets to the debug mode.
 ```
@@ -32,89 +31,141 @@ Note that VarjoTrackerLib can be compiled from https://github.com/lexasss/VarjoT
 The room setup in Varjo Base must be reset once a user takes the upright poistion and faces toward the virtual desktop.
 This allows proper headset rotation compensation for hand location data.
 
-## Tasks
+## Study configuration
 
-Task configurations are stores in a JSON file The format of a task is the following:
+Study setup is specified in a JSON file that has 4 sections
 
-```
-    [{
-      "Randomized": false|true,
-      "Repetitions": N > 0,
-      "CttLambdaIndexes": <array of lambda indexes as appear in CTT> application,
-      "NBackTaskIndexes": <array of task indexes as appear in N-Back task application>,
-    }]
-```
+### SessionSetups
 
-## Experiment
+This section contains a list of experiment block descriptions, each consisting of 4 parameters:
 
-In the current implementation, the setup file must contain at least 6 configurations.
+- Randomized [true/false] - set this parameter to `true` if the trials must be randomized with a block. 
+- Repetitions [N>0] - the number of block repetitions (still counted as a single block)
+- CttLambdaIndexes [array of int] - indexes of lambdas in CTT application
+- NBackTaskIndexes [array of int] - indexes of layouts in NBackTask application
 
-When the setup file is defined, then the app runs two series of blocks (`CttLambdaIndexes` x `NBackTaskIndexes`).
-Prior to start the first block, it asks for a participant ID (1-99). If ID was provided, it load the study configuration using ((ID - 1) % 16) as an index/key of the following array:
+For example, `SessionSetups` may be specified as this:
 
 ```
-    { 0, new Condition(0, 4, TaskOrder.SystemFirst) },
-    { 1, new Condition(1, 5, TaskOrder.SelfFirst) },
-    { 2, new Condition(2, 4, TaskOrder.SystemFirst) },
-    { 3, new Condition(3, 5, TaskOrder.SelfFirst) },
-    { 4, new Condition(0, 5, TaskOrder.SystemFirst) },
-    { 5, new Condition(1, 4, TaskOrder.SelfFirst) },
-    { 6, new Condition(2, 5, TaskOrder.SystemFirst) },
-    { 7, new Condition(3, 4, TaskOrder.SelfFirst) },
-    { 8, new Condition(0, 4, TaskOrder.SelfFirst) },
-    { 9, new Condition(1, 5, TaskOrder.SystemFirst) },
-    { 10, new Condition(2, 4, TaskOrder.SelfFirst) },
-    { 11, new Condition(3, 5, TaskOrder.SystemFirst) },
-    { 12, new Condition(0, 5, TaskOrder.SelfFirst) },
-    { 13, new Condition(1, 4, TaskOrder.SystemFirst) },
-    { 14, new Condition(2, 5, TaskOrder.SelfFirst) },
-    { 15, new Condition(3, 4, TaskOrder.SystemFirst) },
-```
-
-where `Condition ` is defined with `SystemTask`, `SelfTask`, and `TaskOrder`.
-If the order is `SystemFirst`, then it uses `SystemTask` as an index for configuration in the first block, and `SelfTask` in the second block. For `SelfFirst` the  indexes are `SystemTask` and `SystemFirst`.
-Before starting each block, the application asks N-Back task to load a configuration named `system` or `self`.
-
-For each, session the application 
-- sets lambda index in CTT
-- sets task index in N-Back Task
-
-For example, lets assume that configurations in the setup JSON file are defined as follow:
-
-```
-    [{
+"SessionSetups": [
+    {
       "Randomized": false,
       "Repetitions": 1,
       "CttLambdaIndexes": [1, 3],
       "NBackTaskIndexes": [1, 2, 3, 4]
-    },{
-      "Randomized": false,
-      "Repetitions": 1,
-      "CttLambdaIndexes": [1, 3],
+    },
+    {
+      "Randomized": true,
+      "Repetitions": 2,
+      "CttLambdaIndexes": [3, 1],
       "NBackTaskIndexes": [2, 1, 4, 3]
-    },{
-      "Randomized": false,
-      "Repetitions": 1,
-      "CttLambdaIndexes": [1, 3],
-      "NBackTaskIndexes": [3, 4, 2, 1]
-    },{
-      "Randomized": false,
-      "Repetitions": 1,
-      "CttLambdaIndexes": [1, 3],
-      "NBackTaskIndexes": [4, 3, 1, 2]
-    },{
-      "Randomized": false,
-      "Repetitions": 1,
-      "CttLambdaIndexes": [1, 3],
-      "NBackTaskIndexes": [3, 4]
-    },{
-      "Randomized": false,
-      "Repetitions": 1,
-      "CttLambdaIndexes": [1, 3],
-      "NBackTaskIndexes": [4, 3]
-    }]
+    }
+  ]
 ```
 
-A pariticipant with ID=3 will follow the procedure described in the configuration with index ((3 - 1) % 16) = 2, i.e. `SystemTask = 2`, `SelfTask = 4`, and `TaskOrder = SystemFIrst`.
-In first block, s/he will complete N-back tasks with indexes 3, 4, 2, and 1, first with lambda index set to 1, then same tasks with lambda index set to 3.
-In the second block, s/he will complete N-back tasks with indexes 3 and 4, first with lambda index set to 1, then same tasks with lambda index set to 3.
+### NbtProfiles
+
+This section contains a list of profiles available in the NBackTask application.
+For example:
+
+```
+"NbtProfiles": ["system", self"]
+```
+
+### Sets
+
+This section contains a list of sets, each containing a pair of indexes of `SessionSetups` and `NbtProfiles`.
+The sets are participant-wise, i.e. if `N` is the number of sets, then the participant with some ID will be assigned to complete tasks described in a set with the index equal to `(ID - 1) % N`.
+
+Lets study an example. Let's say there are 4 sets (`N=2`) defined like this:
+
+```
+"Sets": [
+    [
+      {
+        "SessionSetupIndex": 0,
+        "NBackTaskProfileIndex": 0
+      },
+      {
+        "SessionSetupIndex": 1,
+        "NBackTaskProfileIndex": 1
+      }
+    ],
+    [
+      {
+        "SessionSetupIndex": 0,
+        "NBackTaskProfileIndex": 1
+      },
+      {
+        "SessionSetupIndex": 1,
+        "NBackTaskProfileIndex": 0
+      }
+    ],
+    [
+      {
+        "SessionSetupIndex": 1,
+        "NBackTaskProfileIndex": 0
+      },
+      {
+        "SessionSetupIndex": 0,
+        "NBackTaskProfileIndex": 1
+      }
+    ],
+    [
+      {
+        "SessionSetupIndex": 1,
+        "NBackTaskProfileIndex": 1
+      },
+      {
+        "SessionSetupIndex": 0,
+        "NBackTaskProfileIndex": 0
+      }
+    ]
+  ]
+```
+
+Say, a participant with ID = 2 takes part in the study. Then the set index will be `(2 - 1) % 4 = 1`, i.e. the participant will be completing two sets of tasks, the first described as
+```
+  "SessionSetupIndex": 0, 
+  "NBackTaskProfileIndex": 1
+```
+and teh second as
+```
+  "SessionSetupIndex": 1
+  "NBackTaskProfileIndex": 0
+```
+That is, the first session will contain 8 non-randomized blocks, as the session with index 0 in the `SessionSetups` section is described as
+```
+  "Randomized": false,
+  "Repetitions": 1,
+  "CttLambdaIndexes": [1, 3],
+  "NBackTaskIndexes": [1, 2, 3, 4]
+```
+
+After this session is complete, the applicaiton will quit automatically. The next time the applicaiton is launched and the same participant ID = 2 is provided, the session will contain 16 randomized block, as the session with index 1 is described as 
+```
+  "Randomized": true,
+  "Repetitions": 2,
+  "CttLambdaIndexes": [3, 1],
+  "NBackTaskIndexes": [2, 1, 4, 3]`
+```
+
+Note that application determines which set to utilize by checking the participant's data log folder. In this example, it selected the set index equal to the number of existing folders inside of `P02` folder.
+
+As there are 4 sets defined in this example, then participant with ID = 6 will be completing same tasks in the same order.
+
+### Questionnaires
+
+This section contains a list of questions asked after each block of trials. Each question is describe as in the following example:
+
+```
+  "Type": 0,
+  "Text": "How easy was the task?",
+  "ID": "RATING",
+  "ScaleMin": 1,
+  "ScaleMax": 7,
+  "ScaleMinText": "Very difficult",
+  "ScaleMaxText": "Very easy"
+```
+
+So far (v0.6), the only type supported is `0` meaning the question is of the `scale` type with min and max values defined.

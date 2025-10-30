@@ -3,7 +3,6 @@
 public enum QuestionnaireType
 {
     Scale,
-    YesNo
 }
 
 public class Questionnaire
@@ -16,25 +15,32 @@ public class Questionnaire
     public string ScaleMinText { get; set; } = "Very difficult";
     public string ScaleMaxText { get; set; } = "Very easy";
 
-    public string[] GetScaleText()
+    public string[] GetQuestionTextLines()
     {
+        var lines = new List<string>
+        {
+            Text,
+        };
+
         if (Type == QuestionnaireType.Scale)
         {
-            var line = "---";
             var scale = "";
             for (int i = ScaleMin; i <= ScaleMax; i++)
-                scale += $"{line} {i} {line}";
+                scale += $"{LINE} {i} {LINE}";
 
             var spaces = new string(' ', Math.Max(1, scale.Length - ScaleMinText.Length - ScaleMaxText.Length));
             var labels = ScaleMinText + spaces + ScaleMaxText;
-            
-            return [labels, scale];
-        }
 
-        return [];
+            lines.Add("");
+            lines.Add(labels);
+            lines.Add(scale);
+        }
+        else throw new NotImplementedException();
+
+        return lines.ToArray();
     }
 
-    public string GetAnswer()
+    public string ReadAnswer()
     {
         if (Type == QuestionnaireType.Scale)
         {
@@ -56,4 +62,9 @@ public class Questionnaire
         }
         else throw new NotImplementedException();
     }
+
+    // Internal 
+
+    readonly string LINE = "--";
+
 }

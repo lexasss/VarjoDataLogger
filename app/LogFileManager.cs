@@ -33,7 +33,7 @@ internal static class LogFileManager
         return folders.Count() == sessionSetsAndNbtProfiles.Length;
     }
 
-    public static void Collect(int participantId, int sessionId, string nbtProfile)
+    public static void CollectFiles(int participantId, int sessionId, string nbtProfile)
     {
         if (participantId <= 0 || string.IsNullOrEmpty(nbtProfile))
         {
@@ -50,6 +50,8 @@ internal static class LogFileManager
                 continue;
             }
 
+            int moved = 0;
+
             var files = Directory.GetFiles(path, fileMask);
             foreach (var file in files)
             {
@@ -59,12 +61,15 @@ internal static class LogFileManager
                 try
                 {
                     File.Move(file, destPath);
+                    moved++;
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error moving file '{file}' to {destPath}: {ex.Message}");
                 }
             }
+
+            Console.WriteLine($"Moved {moved}/{files.Length} files from the folder {path}");
         }
     }
 

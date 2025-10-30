@@ -4,16 +4,16 @@ namespace VarjoDataLogger.Study;
 
 // Serializable classes
 
-public record class Block(int CttLambdaIndex, int NBackTaskIndex);
+public record class Block(int CttLambdaIndex, int NbtLayoutIndex);
 
-public record class SessionSetupAndNbtProfile(int SessionSetupIndex, int NBackTaskProfileIndex);
+public record class SessionSetupAndNbtProfile(int SessionSetupIndex, int NbtProfileIndex);
 
 public class SessionSetup
 {
     public bool Randomized { get; set; } = false;
     public int Repetitions { get; set; } = 1;
     public int[] CttLambdaIndexes { get; set; } = [ 0 ];
-    public int[] NBackTaskIndexes { get; set; } = [ 0 ];
+    public int[] NbtLayoutIndexes { get; set; } = [ 0 ];
 
     public Block[] CreateBlocks()
     {
@@ -22,9 +22,9 @@ public class SessionSetup
         {
             foreach (var lambdaIndex in CttLambdaIndexes)
             {
-                foreach (var nbackTaskIndex in NBackTaskIndexes)
+                foreach (var nbtLayoutIndex in NbtLayoutIndexes)
                 {
-                    result.Add(new Block(lambdaIndex, nbackTaskIndex));
+                    result.Add(new Block(lambdaIndex, nbtLayoutIndex));
                 }
             }
         }
@@ -73,8 +73,8 @@ public class Configuration
             return null;
 
         var sessionSetup = SessionSetups[sessionSetAndNbtProfile.SessionSetupIndex];
-        var nbackTaskProfile = NbtProfiles[sessionSetAndNbtProfile.NBackTaskProfileIndex];
-        return new Session(participantId, sessionSetup.CreateBlocks(), nbackTaskProfile);
+        var nbtProfile = NbtProfiles[sessionSetAndNbtProfile.NbtProfileIndex];
+        return new Session(participantId, sessionSetup.CreateBlocks(), nbtProfile);
     }
 
     public static Configuration? Load(string? filename)
@@ -158,12 +158,12 @@ public class Configuration
 
         if (SessionSetups.Length == 0)
             SessionSetups = [
-                new() { CttLambdaIndexes = [1, 3], NBackTaskIndexes = [1, 2, 3, 4] },
-                new() { CttLambdaIndexes = [1, 3], NBackTaskIndexes = [2, 1, 4, 3] },
-                new() { CttLambdaIndexes = [1, 3], NBackTaskIndexes = [3, 4, 2, 1] },
-                new() { CttLambdaIndexes = [1, 3], NBackTaskIndexes = [4, 3, 1, 2] },
-                new() { CttLambdaIndexes = [1, 3], NBackTaskIndexes = [3, 4] },
-                new() { CttLambdaIndexes = [1, 3], NBackTaskIndexes = [4, 3] },
+                new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [1, 2, 3, 4] },
+                new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [2, 1, 4, 3] },
+                new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [3, 4, 2, 1] },
+                new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [4, 3, 1, 2] },
+                new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [3, 4] },
+                new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [4, 3] },
             ];
     }
 }
