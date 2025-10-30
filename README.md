@@ -15,12 +15,12 @@ Note that VarjoTrackerLib can be compiled from https://github.com/lexasss/VarjoT
 ## Command line
 
 ```
-  -n, --nbtip      IP address of the PC running N-Back task application. Default is '127.0.0.1'.
-  -c, --cttip      IP address of the PC running CTT application. Default is '127.0.0.1'.
-  -m, --lmsip      IP address of the PC running Leap Motion Streamer application. Default is '127.0.0.1'.
-  -l, --log        Log file folder, must be without spaces. Default is 'C:/Users/<USERNAME>/Documents'.
+  -l, --log        Log file folder. IMPORTANT: it must not contain spaces! Default is 'C:/Users/<USERNAME>/Documents'.
   -o, --offset     Leap Motion ZYX offsets (comma-separated, no spaces). Default is '-6,15,0'.
   -h, --hide       Forces the console window to be hidden (minimized) while the tracking is on.
+  -c, --cttip      IP address of the PC running CTT application. Default is '127.0.0.1'.
+  -n, --nbtip      IP address of the PC running N-Back task application. Default is '127.0.0.1'.
+  -m, --lmsip      IP address of the PC running Leap Motion Streamer application. Default is '127.0.0.1'.
   -s, --setup      JSON setup file with study configuration. Default is 'no value'.
   -v, --verbose    Debug info is printed in the verbose mode.
   -d, --debug      Sets to the debug mode.
@@ -31,11 +31,19 @@ Note that VarjoTrackerLib can be compiled from https://github.com/lexasss/VarjoT
 The room setup in Varjo Base must be reset once a user takes the upright poistion and faces toward the virtual desktop.
 This allows proper headset rotation compensation for hand location data.
 
-## Study configuration
+## Study
 
-Study setup is specified in a JSON file that has 4 sections
+This tool can be used run a study that involves using [CTT](https://github.com/lexasss/ctt) and [NBackTask](https://github.com/lexasss/n-back-task) applications. If you plan such a study, you can specify IP addresses of the machines running these apps (`cttip` and `nbtip` parameters).
 
-### SessionSetups
+In addition, the log file with Varjo data can be extended with an additional Leap Motion hand tracker (the old model, not the model used to attach to the Varjo headset). If there is such a tracker, please download [LMStreaming tool](https://github.com/lexasss/LMStreaming) and provide `lmsip` parameter as the IP address of the machine running LMStreaming app.
+
+Finally, you would need to specify the study configuration. You can run the Varjo Data Logger with `setup` set to some not yet existing JSON file, and it will create such a file for you some default content. You then have to edit this file according to the descirption below.
+
+### Study configuration file
+
+Study configuration is specified in a JSON file that has 4 sections.
+
+#### SessionSetups
 
 This section contains a list of experiment block descriptions, each consisting of 4 parameters:
 
@@ -63,7 +71,7 @@ For example, `SessionSetups` may be specified as this:
   ]
 ```
 
-### NbtProfiles
+#### NbtProfiles
 
 This section contains a list of profiles available in the NBackTask application.
 For example:
@@ -72,7 +80,7 @@ For example:
 "NbtProfiles": ["system", self"]
 ```
 
-### Sets
+#### Sets
 
 This section contains a list of sets, each containing a pair of indexes of `SessionSetups` and `NbtProfiles`.
 The sets are participant-wise, i.e. if `N` is the number of sets, then the participant with some ID will be assigned to complete tasks described in a set with the index equal to `(ID - 1) % N`.
@@ -154,7 +162,7 @@ Note that application determines which set to utilize by checking the participan
 
 As there are 4 sets defined in this example, then participant with ID = 6 will be completing same tasks in the same order.
 
-### Questions
+#### Questions
 
 This section contains a list of questions asked after each block of trials. Each question is describe as in the following example:
 
