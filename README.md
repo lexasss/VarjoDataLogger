@@ -4,7 +4,7 @@ Logs eye-gaze, head-gaze and hand location into a sinlge file.
 
 ## Hardware
 
-Tested with Varjo XR-3 and XR-4 with Leap Motion Controller 2.
+Tested with Varjo XR-3 and XR-4 with UltraLeap Motion Controller.
 
 ## Dependencies
 
@@ -21,7 +21,7 @@ Note that VarjoTrackerLib can be compiled from https://github.com/lexasss/VarjoT
   -c, --cttip      IP address of the PC running CTT application. Default is '127.0.0.1'.
   -n, --nbtip      IP address of the PC running N-Back task application. Default is '127.0.0.1'.
   -m, --lmsip      IP address of the PC running Leap Motion Streamer application. Default is '127.0.0.1'.
-  -s, --setup      JSON setup file with study configuration. Default is 'no value'.
+  -s, --setup      JSON file with study configuration. Default is 'no value'.
   -v, --verbose    Debug info is printed in the verbose mode.
   -d, --debug      Sets to the debug mode.
 ```
@@ -35,13 +35,13 @@ This allows proper headset rotation compensation for hand location data.
 
 This tool can be used run a study that involves using [CTT](https://github.com/lexasss/ctt) and [NBackTask](https://github.com/lexasss/n-back-task) applications. If you plan such a study, you can specify IP addresses of the machines running these apps (`cttip` and `nbtip` parameters).
 
-In addition, the log file with Varjo data can be extended with an additional Leap Motion hand tracker (the old model, not the model used to attach to the Varjo headset). If there is such a tracker, please download [LMStreaming tool](https://github.com/lexasss/LMStreaming) and provide `lmsip` parameter as the IP address of the machine running LMStreaming app.
+In addition, the log file with Varjo data can be extended with an additional Leap Motion hand tracker (the old LeapMotion model, not the UltraLeap model used to attach to the Varjo headset). If there is such a tracker, please download [LMStreaming tool](https://github.com/lexasss/LMStreaming) and provide the IP address of the machine running LMStreaming app in `lmsip` parameter.
 
-Finally, you would need to specify the study configuration. You can run the Varjo Data Logger with `setup` set to some not yet existing JSON file, and it will create such a file for you some default content. You then have to edit this file according to the descirption below.
+Finally, you would need to specify the study configuration. You can run the Varjo Data Logger with `setup` set to some not yet existing JSON file, and it will create such a file for you with some default content. You then have to edit this file according to the descirption below.
 
 ### Study configuration file
 
-Study configuration is specified in a JSON file that has 4 sections.
+Study configuration is specified in a JSON file that has 5 sections.
 
 #### SessionSetups
 
@@ -56,19 +56,19 @@ For example, `SessionSetups` may be specified as this:
 
 ```
 "SessionSetups": [
-    {
-      "Randomized": false,
-      "Repetitions": 1,
-      "CttLambdaIndexes": [1, 3],
-      "NBackTaskIndexes": [1, 2, 3, 4]
-    },
-    {
-      "Randomized": true,
-      "Repetitions": 2,
-      "CttLambdaIndexes": [3, 1],
-      "NBackTaskIndexes": [2, 1, 4, 3]
-    }
-  ]
+  {
+    "Randomized": false,
+    "Repetitions": 1,
+    "CttLambdaIndexes": [1, 3],
+    "NbtLayoutIndexes": [1, 2, 3, 4]
+  },
+  {
+    "Randomized": true,
+    "Repetitions": 2,
+    "CttLambdaIndexes": [3, 1],
+    "NbtLayoutIndexes": [2, 1, 4, 3]
+  }
+]
 ```
 
 #### NbtProfiles
@@ -85,51 +85,51 @@ For example:
 This section contains a list of sets, each containing a pair of indexes of `SessionSetups` and `NbtProfiles`.
 The sets are participant-wise, i.e. if `N` is the number of sets, then the participant with some ID will be assigned to complete tasks described in a set with the index equal to `(ID - 1) % N`.
 
-Lets study an example. Let's say there are 4 sets (`N=2`) defined like this:
+Lets study an example. Let's say there are 4 sets (`N = 4`) defined like this:
 
 ```
 "Sets": [
-    [
-      {
-        "SessionSetupIndex": 0,
-        "NBackTaskProfileIndex": 0
-      },
-      {
-        "SessionSetupIndex": 1,
-        "NBackTaskProfileIndex": 1
-      }
-    ],
-    [
-      {
-        "SessionSetupIndex": 0,
-        "NBackTaskProfileIndex": 1
-      },
-      {
-        "SessionSetupIndex": 1,
-        "NBackTaskProfileIndex": 0
-      }
-    ],
-    [
-      {
-        "SessionSetupIndex": 1,
-        "NBackTaskProfileIndex": 0
-      },
-      {
-        "SessionSetupIndex": 0,
-        "NBackTaskProfileIndex": 1
-      }
-    ],
-    [
-      {
-        "SessionSetupIndex": 1,
-        "NBackTaskProfileIndex": 1
-      },
-      {
-        "SessionSetupIndex": 0,
-        "NBackTaskProfileIndex": 0
-      }
-    ]
+  [
+    {
+      "SessionSetupIndex": 0,
+      "NBackTaskProfileIndex": 0
+    },
+    {
+      "SessionSetupIndex": 1,
+      "NBackTaskProfileIndex": 1
+    }
+  ],
+  [
+    {
+      "SessionSetupIndex": 0,
+      "NBackTaskProfileIndex": 1
+    },
+    {
+      "SessionSetupIndex": 1,
+      "NBackTaskProfileIndex": 0
+    }
+  ],
+  [
+    {
+      "SessionSetupIndex": 1,
+      "NBackTaskProfileIndex": 0
+    },
+    {
+      "SessionSetupIndex": 0,
+      "NBackTaskProfileIndex": 1
+    }
+  ],
+  [
+    {
+      "SessionSetupIndex": 1,
+      "NBackTaskProfileIndex": 1
+    },
+    {
+      "SessionSetupIndex": 0,
+      "NBackTaskProfileIndex": 0
+    }
   ]
+]
 ```
 
 Say, a participant with ID = 2 takes part in the study. Then the set index will be `(2 - 1) % 4 = 1`, i.e. the participant will be completing two sets of tasks, the first described as
@@ -137,7 +137,7 @@ Say, a participant with ID = 2 takes part in the study. Then the set index will 
   "SessionSetupIndex": 0, 
   "NBackTaskProfileIndex": 1
 ```
-and teh second as
+and the second as
 ```
   "SessionSetupIndex": 1
   "NBackTaskProfileIndex": 0
@@ -176,4 +176,31 @@ This section contains a list of questions asked after each block of trials. Each
   "ScaleMaxText": "Very easy"
 ```
 
-So far (v0.6), the only type supported is `0` meaning the question is of the `scale` type with min and max values defined.
+So far (v0.6), the only supported type is `0`, meaning the question is of the `scale` type with min and max values defined.
+
+#### Paths
+
+This section describes the location of collected data. It consists of the data destination folder `Destination` where all participant data will be collected upon the app finishes its work. The other part is `FilesMasks` that contains is a list of `Path`-`Mask` pairs. For example:
+```
+"Paths": {
+  "Destination": "..\\data",
+  "FilesMasks": [
+    {
+      "Path": "D:\\data",
+      "Mask": "*.txt"
+    },
+    {
+      "Path": "D:\\Videos\\Varjo",
+      "Mask": "*.mp4"
+    },
+    {
+      "Path": "D:\\Videos\\Varjo",
+      "Mask": "*.csv"
+    }
+  ]
+}
+```
+
+After the session is over, the application traverses over this list, collects all the files that match the masks in the corresponding folders, and move them to the `{Destination}\PXX\{N} - {nbt-profile}` folder, where `PXX` is a participant folde (like `P03`), `N` is a 0-based session index, and `nbt-profile` is the NBackTask profile used in this session.
+
+In this example, all log files will be moved to `data\P03` folder that will be created in the parent's folder (relative to this application). If the CTT and NBackTask were configure to store their log file in `D:\data`, then these log file will be moved to `..\data\P03\0 - system`. Also Varjo log data, XR view video (MP4) and gaze log file (CSV), will be moved to the same folder.
