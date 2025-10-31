@@ -7,13 +7,13 @@ public enum QuestionType
 
 public class Question
 {
-    public QuestionType Type { get; set; } = QuestionType.Scale;
-    public string Text { get; set; } = string.Empty;
-    public string ID { get; set; } = string.Empty;
-    public int ScaleMin { get; set; } = 1;
-    public int ScaleMax { get; set; } = 7;
-    public string ScaleMinText { get; set; } = "Very difficult";
-    public string ScaleMaxText { get; set; } = "Very easy";
+    public QuestionType Type { get; init; } = QuestionType.Scale;
+    public string Text { get; init; } = string.Empty;
+    public string ID { get; init; } = string.Empty;
+    public int ScaleMin { get; init; } = 1;
+    public int ScaleMax { get; init; } = 7;
+    public string ScaleMinText { get; init; } = "Very difficult";
+    public string ScaleMaxText { get; init; } = "Very easy";
 
     public string[] GetQuestionTextLines()
     {

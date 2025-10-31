@@ -11,10 +11,10 @@ public record class Paths(string Destination, FileMask[] FilesMasks);
 
 public class SessionSetup
 {
-    public bool Randomized { get; set; } = false;
-    public int Repetitions { get; set; } = 1;
-    public int[] CttLambdaIndexes { get; set; } = [ 0 ];
-    public int[] NbtLayoutIndexes { get; set; } = [ 0 ];
+    public bool Randomized { get; init; } = false;
+    public int Repetitions { get; init; } = 1;
+    public int[] CttLambdaIndexes { get; init; } = [ 0 ];
+    public int[] NbtLayoutIndexes { get; init; } = [ 0 ];
 
     public Block[] CreateBlocks()
     {
@@ -42,11 +42,11 @@ public class SessionSetup
 
 public class Configuration
 {
-    public Question[] Questions { get; set; } = [];
-    public SessionSetup[] SessionSetups { get; set; } = [];
-    public string[] NbtProfiles { get; set; } = [];
-    public SessionSetupAndNbtProfile[][] Sets { get; set; } = [];
-    public Paths Paths { get; set; } = new(string.Empty, []);
+    public Question[] Questions { get; init; } = [];
+    public SessionSetup[] SessionSetups { get; init; } = [];
+    public string[] NbtProfiles { get; init; } = [];
+    public SessionSetupAndNbtProfile[][] Sets { get; init; } = [];
+    public Paths Paths { get; init; } = new(string.Empty, []);
 
     public static int GetSessionId(int participantId)
     {
