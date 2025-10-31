@@ -147,8 +147,7 @@ public class Configuration
 
         if (Questions.Length == 0)
             Questions = [
-                new Question() {
-                    Type = QuestionType.Scale,
+                new Questions.Scale() {
                     Text = "Overall, how difficult or easy did you find this task?",
                     ID = "RATING",
                     ScaleMin = 1,
