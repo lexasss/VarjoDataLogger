@@ -150,10 +150,10 @@ public class Configuration
                 new Questions.Scale() {
                     Text = "Overall, how difficult or easy did you find this task?",
                     ID = "RATING",
-                    ScaleMin = 1,
-                    ScaleMinText = "Very difficult",
-                    ScaleMax = 7,
-                    ScaleMaxText = "Very easy"
+                    Min = 1,
+                    MinLabel = "Very difficult",
+                    Max = 7,
+                    MaxLabel = "Very easy"
                 }
             ];
 

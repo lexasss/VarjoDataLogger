@@ -3,7 +3,7 @@ using VarjoDataLogger.Study.Questions;
 
 namespace VarjoDataLogger.Study;
 
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "Type")]
 [JsonDerivedType(typeof(Scale), "Scale")]
 public abstract class Question
 {

@@ -2,29 +2,26 @@
 
 public class Scale : Question
 {
-    public int ScaleMin { get; init; } = 1;
-    public int ScaleMax { get; init; } = 7;
-    public string ScaleMinText { get; init; } = "Very difficult";
-    public string ScaleMaxText { get; init; } = "Very easy";
+    public int Min { get; init; } = 1;
+    public int Max { get; init; } = 7;
+    public string MinLabel { get; init; } = "Very difficult";
+    public string MaxLabel { get; init; } = "Very easy";
 
     public override string[] GetQuestionTextLines()
     {
         var scale = "";
-        for (int i = ScaleMin; i <= ScaleMax; i++)
+        for (int i = Min; i <= Max; i++)
             scale += $"{LINE} {i} {LINE}";
 
-        var spaces = new string(' ', Math.Max(1, scale.Length - ScaleMinText.Length - ScaleMaxText.Length));
-        var labels = ScaleMinText + spaces + ScaleMaxText;
+        var spaces = new string(' ', Math.Max(1, scale.Length - MinLabel.Length - MaxLabel.Length));
+        var labels = MinLabel + spaces + MaxLabel;
 
-        var lines = new List<string>
-        {
+        return [
             Text,
             "",
             labels,
             scale
-        };
-
-        return lines.ToArray();
+        ];
     }
 
     public override string ReadAnswer()
@@ -33,9 +30,9 @@ public class Scale : Question
         for (; ; )
         {
             var input = Console.ReadLine();
-            if (!int.TryParse(input, out rating) || rating < ScaleMin || rating > ScaleMax)
+            if (!int.TryParse(input, out rating) || rating < Min || rating > Max)
             {
-                Console.WriteLine($"Please enter a number between {ScaleMin} and {ScaleMax}.");
+                Console.WriteLine($"Please enter a number between {Min} and {Max}.");
             }
             else
             {

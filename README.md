@@ -167,16 +167,16 @@ As there are 4 sets defined in this example, then participant with ID = 6 will b
 This section contains a list of questions asked after each block of trials. Each question is describe as in the following example:
 
 ```
-  "Type": 0,
+  "Type": "Scale",
   "Text": "How easy was the task?",
   "ID": "RATING",
-  "ScaleMin": 1,
-  "ScaleMax": 7,
-  "ScaleMinText": "Very difficult",
-  "ScaleMaxText": "Very easy"
+  "Min": 1,
+  "Max": 7,
+  "MinText": "Very difficult",
+  "MaxText": "Very easy"
 ```
 
-So far (v0.6), the only supported type is `0`, meaning the question is of the `scale` type with min and max values defined.
+As of version 0.6, the only supported type is `Scale`.
 
 #### Paths
 
