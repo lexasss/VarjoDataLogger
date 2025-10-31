@@ -17,6 +17,8 @@ class Recorder : IDisposable
                 throw new Exception($"The configuration file was not found. A template was created in '{_settings.StudySetupFilename}', please review and edit as neccesary.");
             }
 
+            LogFileManager.Init(config.Paths);
+
             Task.Delay(500).Wait();
             _participantId = GetParticipantId(config);
 

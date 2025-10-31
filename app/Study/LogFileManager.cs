@@ -1,7 +1,4 @@
-﻿using System.Text.Json;
-using VarjoDataLogger.Study;
-
-namespace VarjoDataLogger;
+﻿namespace VarjoDataLogger.Study;
 
 internal static class LogFileManager
 {
@@ -17,6 +14,14 @@ internal static class LogFileManager
                 .ToList();
             return ids.Count > 0 ? ids.Max() : 0;
         }
+    }
+
+    public static void Init(Paths paths)
+    {
+        _destinationFolder = paths.Destination;
+        _fileMasks = paths.FilesMasks;
+
+        Directory.CreateDirectory(_destinationFolder);
     }
 
     public static string GetParticipantFolder(int participantId) =>
@@ -106,45 +111,6 @@ internal static class LogFileManager
 
     // Internal
 
-    record class FileMask(string Path, string Mask);
-    record class Paths(string Destination, FileMask[] FilesMasks);
-
-    static readonly string _destinationFolder = Path.Combine("..", "data");
-    static readonly string _pathsFilename = "paths.json";
-
-    static readonly FileMask[] _fileMasks = [
-        new(Path.Combine("..", "data"), "*.txt"),
-    ];
-
-    static LogFileManager()
-    {
-        Directory.CreateDirectory(_destinationFolder);
-
-        Paths? paths = null;
-
-        try
-        {
-            paths = JsonSerializer.Deserialize<Paths?>(
-                File.ReadAllText(_pathsFilename)
-            );
-        }
-        catch { }
-
-        if (paths != null)
-        {
-            _destinationFolder = paths.Destination;
-            _fileMasks = paths.FilesMasks;
-        }
-        else
-        {
-            paths = new Paths(
-                _destinationFolder,
-                _fileMasks
-            );
-            File.WriteAllText(
-                _pathsFilename,
-                JsonSerializer.Serialize(paths, new JsonSerializerOptions { WriteIndented = true })
-            );
-        }
-    }
+    static string _destinationFolder = "data";
+    static FileMask[] _fileMasks = [];
 }

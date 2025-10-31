@@ -5,8 +5,9 @@ namespace VarjoDataLogger.Study;
 // Serializable classes
 
 public record class Block(int CttLambdaIndex, int NbtLayoutIndex);
-
 public record class SessionSetupAndNbtProfile(int SessionSetupIndex, int NbtProfileIndex);
+public record class FileMask(string Path, string Mask);
+public record class Paths(string Destination, FileMask[] FilesMasks);
 
 public class SessionSetup
 {
@@ -45,6 +46,7 @@ public class Configuration
     public SessionSetup[] SessionSetups { get; set; } = [];
     public string[] NbtProfiles { get; set; } = [];
     public SessionSetupAndNbtProfile[][] Sets { get; set; } = [];
+    public Paths Paths { get; set; } = new(string.Empty, []);
 
     public static int GetSessionId(int participantId)
     {
@@ -165,5 +167,8 @@ public class Configuration
                 new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [3, 4] },
                 new() { CttLambdaIndexes = [1, 3], NbtLayoutIndexes = [4, 3] },
             ];
+
+        if (string.IsNullOrEmpty(Paths.Destination))
+            Paths = new Paths("data", [new(Environment.CurrentDirectory, "*.txt")]);
     }
 }
