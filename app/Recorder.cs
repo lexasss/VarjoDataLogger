@@ -121,6 +121,7 @@ class Recorder : IDisposable
     readonly Settings _settings;
     readonly Session? _session;
     readonly int _participantId;
+    readonly object _guard = new();
 
     string _nbtMessage = string.Empty;
 
@@ -149,7 +150,7 @@ class Recorder : IDisposable
         {
             HandLocation.Empty.CopyTo(_topviewHandLocation);
         }
-        lock (_nbtMessage)
+        lock (_guard)
         {
             _nbtMessage = "";
         }
@@ -512,7 +513,7 @@ class Recorder : IDisposable
             e = e[..3];
         }
 
-        lock (_nbtMessage)
+        lock (_guard)
         {
             _nbtMessage = e;
         }
@@ -543,9 +544,9 @@ class Recorder : IDisposable
         _gazeSampleCount++;
 
         string eventInfo;
-        lock (_nbtMessage)
+        lock (_guard)
         {
-            eventInfo = _nbtMessage;
+            eventInfo = new string(_nbtMessage);
             _nbtMessage = "";
         }
 
